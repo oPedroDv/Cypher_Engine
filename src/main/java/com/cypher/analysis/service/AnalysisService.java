@@ -14,10 +14,8 @@ import java.util.Random;
 import java.util.UUID;
 
 @Service
-public class AnalysisService {
-
-    private static final String MODEL_VERSION = "stub_v0.1";
-
+public class AnalysisService{faça
+    private static final String MODEL_VERSION = "stud_v0.1";
     private final InvoiceRepository invoiceRepository;
     private final RiskAnalysisRepository riskRepository;
 
@@ -31,17 +29,15 @@ public class AnalysisService {
     public AnalysisResponse analyze(AnalysisRequest request) {
         Invoice invoice = Invoice.of(request.xmlBase64());
         invoiceRepository.save(invoice);
-
         double score = computeScore(request.xmlBase64());
-
         RiskAnalysis analysis = RiskAnalysis.of(invoice, score, MODEL_VERSION);
-            riskRepository.save(analysis);
+        riskRepository.save(analysis);
 
-            return AnalysisResponse.from(analysis);
+        return AnalysisResponse.from(analysis);
     }
 
-    @Transactional(readOnly = true)
-    public Optional<AnalysisResponse> findByID(UUID id) {
+    @Transactional
+    public Optional<AnalysisResponse> findById(UUID id) {
         return riskRepository.findById(id)
                 .map(AnalysisResponse::from);
     }

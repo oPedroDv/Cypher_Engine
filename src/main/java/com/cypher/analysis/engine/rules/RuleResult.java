@@ -1,5 +1,4 @@
-package com.cypher.analysis.engine;
-
+package com.cypher.analysis.engine.rules;
 
 public record RuleResult(
         String ruleName,
@@ -11,6 +10,7 @@ public record RuleResult(
         String explanation,
         String dataSource
 ) {
+
     public static RuleResult of(
             String ruleName,
             String category,
@@ -23,7 +23,7 @@ public record RuleResult(
         return new RuleResult(
                 ruleName,
                 category,
-                clamo(score),
+                clamp(score),
                 weight,
                 clamp(score) * weight,
                 direction,
@@ -32,7 +32,7 @@ public record RuleResult(
         );
     }
 
-    public static RuleResult fallback(String ruleName, String category, double weight){
+    public static RuleResult fallback(String ruleName, String category, double weight) {
         double conservativeScore = 0.4;
         return new RuleResult(
                 ruleName,
@@ -41,16 +41,16 @@ public record RuleResult(
                 weight,
                 conservativeScore * weight,
                 "INCREASE",
-                "Fonte de dados indisponível - score conservador aplicado automaticamente.",
+                "Fonte de dados indisponível — score conservador aplicado automaticamente.",
                 "FALLBACK"
         );
     }
 
-    private static double clamp (double value) {
+    private static double clamp(double value) {
         return Math.min(1.0, Math.max(0.0, value));
     }
 
-    public boolean isFallBack() {
+    public boolean isFallback() {
         return "FALLBACK".equals(dataSource);
     }
 }

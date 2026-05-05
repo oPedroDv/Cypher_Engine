@@ -15,7 +15,7 @@ public record AnalysisResponse(
         String modelVersion,
         Instant createdAt
 ) {
-    public static AnalysisResponse from (RiskAnalysis analysis) {
+    public static AnalysisResponse from(RiskAnalysis analysis) {
         return new AnalysisResponse(
                 analysis.getId(),
                 analysis.getInvoice().getId(),
@@ -26,13 +26,12 @@ public record AnalysisResponse(
                 analysis.getCreatedAt()
         );
     }
-
     private static String resolveRecommendation(RiskLevel level) {
         return switch (level) {
             case LOW -> "Perfil favorável. Antecipação recomendada.";
             case MEDIUM -> "Atenção recomendada. Verifique histórico do sacado.";
-            case HIGH -> "Exposição relevante. Considere taxa ajustada ou garantias adicionais.";
-            case CRITICAL -> "Risco elevado. Não recomendado antecipar sem análise manual.";
+            case HIGH -> "Exposição relevante. Considere taxa ajustado ou garantias adicionais.";
+            case CRITICAL -> "Risco elevado. Não recomendado antecipar sem analise manual.";
         };
     }
 }
