@@ -13,7 +13,7 @@ public class IssuerHistoryRule implements RiskRule {
         int total = context.issuerTotalInvoices();
         int defaults = context.issuerDefaultCount();
         if (total == 0){
-            return RuleResult.of(getName(), "behavioral", 0.35, "WEIGHT", "INCREASE", "Cedente sem histórico no sistema - incerteza elevada.","INTERNAL_HISTORY");
+            return RuleResult.of(getName(), "behavioral", 0.35, WEIGHT, "INCREASE", "Cedente sem histórico no sistema - incerteza elevada.","INTERNAL_HISTORY");
         }
 
         double defaultRate = (double) defaults / total;

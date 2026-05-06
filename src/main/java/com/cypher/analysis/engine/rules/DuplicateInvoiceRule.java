@@ -3,10 +3,10 @@ package com.cypher.analysis.engine.rules;
 import com.cypher.analysis.engine.ScoringContext;
 import org.springframework.stereotype.Component;
 
-import static java.awt.font.TextAttribute.WEIGHT;
-
 @Component
 public class DuplicateInvoiceRule implements RiskRule {
+
+    private static final double WEIGHT = 0.10;
     @Override
     public RuleResult evaluate(ScoringContext context) {
         int pairTotal = context.pairTotalInvoices();

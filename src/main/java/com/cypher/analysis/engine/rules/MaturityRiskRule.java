@@ -1,7 +1,6 @@
 package com.cypher.analysis.engine.rules;
 
 import com.cypher.analysis.engine.ScoringContext;
-import org.apache.tomcat.util.digester.Rule;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;

@@ -23,7 +23,7 @@ public record RuleResult(
         return new RuleResult(
                 ruleName,
                 category,
-                clamo(score),
+                clamp(score),
                 weight,
                 clamp(score) * weight,
                 direction,
