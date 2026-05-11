@@ -8,15 +8,12 @@ import com.cypher.analysis.engine.ScoringContext;
 import com.cypher.analysis.repository.InvoiceRepository;
 import com.cypher.analysis.repository.RiskAnalysisRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
-import com.cypher.shared.exception.InvalidNFeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -37,36 +34,32 @@ public class AnalysisService {
             RiskEngineService riskEngine,
             FinancialMetricsService financialMetricsService,
             XmlStorageService xmlStorageService,
-            IdempotencyService idempotencyService
-    ) {
-        this.invoiceRepository      = invoiceRepository;
-        this.riskRepository         = riskRepository;
-        this.riskEngine             = riskEngine;
+            IdempotencyService idempotencyService) {
+        this.invoiceRepository = invoiceRepository;
+        this.riskRepository = riskRepository;
+        this.riskEngine = riskEngine;
         this.financialMetricsService = financialMetricsService;
-        this.xmlStorageService      = xmlStorageService;
-        this.idempotencyService     = idempotencyService;
+        this.xmlStorageService = xmlStorageService;
+        this.idempotencyService = idempotencyService;
     }
 
     @Transactional
     public AnalysisResponse analyze(AnalysisRequest request) {
-
-        String existingId = idempotencyService.checkOrReserve(request.idempotencyKey());
-        if (existingId != null) {
-            log.debug("Requisição idempotente. Retornando análise existente: {}", existingId);
-            return riskRepository.findById(UUID.fromString(existingId))
-                    .map(a -> AnalysisResponse.from(a, true))
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Análise idempotente não encontrada no banco: " + existingId));
+        String existingAnalysisId = idempotencyService.checkOrReverse(request.idempotencyKey());
+        if (existingAnalysisId != null) {
+            return findById(UUID.fromString(existingAnalysisId))
+                    .orElseThrow(() -> new IllegalStateException("Erro ao recuperar análise idempotente"));
         }
 
         try {
-            NFeData nfeData = parseXml(request.xmlBase64());
+            String xmlPath = xmlStorageService.store(request.xmlBase64());
 
-            checkDuplicate(nfeData.getChaveAcesso());
             Invoice invoice = Invoice.of(request.xmlBase64());
-            invoice = invoiceRepository.save(invoice);
+            validateDuplicity(invoice.getChaveNfe());
 
-            xmlStorageService.store(request.xmlBase64(), invoice.getId(), nfeData.getChaveAcesso());
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+
+            NFeData nfeData = NFeParser.parse(request.xmlBase64());
 
             ScoringContext context = buildScoringContext(nfeData, request);
 
@@ -79,96 +72,46 @@ public class AnalysisService {
                     engineResult.score()
             );
 
-            List<RiskFactor> factors = engineResult.factors().stream()
-                    .map(RiskFactor::from)
-                    .toList();
-
             RiskAnalysis analysis = RiskAnalysis.of(
-                    invoice,
+                    savedInvoice,
                     engineResult.score(),
-                    engineResult.modelVersion(),
-                    factors,
-                    metrics,
-                    engineResult.dataIsPartial()
+                    engineResult.modelVersion()
             );
-            riskRepository.save(analysis);
 
-            idempotencyService.complete(request.idempotencyKey(), analysis.getId());
+            RiskAnalysis savedAnalysis = riskRepository.save(analysis);
 
-            log.info("Análise concluída. ID: {} Score: {} Level: {} Partial: {}",
-                    analysis.getId(),
-                    engineResult.score(),
-                    RiskLevel.from(engineResult.score()),
-                    engineResult.dataIsPartial());
-
-            return AnalysisResponse.from(analysis, false);
+            return AnalysisResponse.from(savedAnalysis, false);
 
         } catch (Exception e) {
             idempotencyService.release(request.idempotencyKey());
+            log.error("Falha na análise de risco: {}", e.getMessage());
             throw e;
         }
     }
 
-    @Transactional(readOnly = true)
-    public Optional<AnalysisResponse> findById(UUID id) {
+    public java.util.Optional<AnalysisResponse> findById(UUID id) {
         return riskRepository.findById(id)
-                .map(a -> AnalysisResponse.from(a, false));
+                .map(analysis -> AnalysisResponse.from(analysis, true));
     }
 
-    private NFeData parseXml(String xmlBase64) {
-        try {
-
-            return NFeData.builder()
-                    .chaveAcesso(extractChaveFromXml(xmlBase64))
-                    .valorTotal(extractValorFromXml(xmlBase64))
-                    .buildUnsafe();
-        } catch (Exception e) {
-            throw new InvalidNFeException("Falha ao processar o XML: " + e.getMessage(), e);
-        }
-    }
-
-    private void checkDuplicate(String chaveNfe) {
-        if (chaveNfe == null) return;
-
-        invoiceRepository.findByChaveNfe(chaveNfe).ifPresent(existing -> {
-            riskRepository.findTopByInvoiceIdOrderByCreatedAtDesc(existing.getId())
+    private void validateDuplicity(String chaveNfe) {
+        invoiceRepository.findByChaveNfe(chaveNfe).ifPresent(invoice -> {
+            riskRepository.findTopByInvoiceIdOrderByCreatedAtDesc(invoice.getId())
                     .ifPresent(analysis -> {
-                        throw new DuplicateInvoiceException(
-                                chaveNfe,
-                                analysis.getId().toString()
-                        );
+                        throw new DuplicateInvoiceException(chaveNfe, analysis.getId().toString());
                     });
         });
     }
 
     private ScoringContext buildScoringContext(NFeData nfeData, AnalysisRequest request) {
-
         return ScoringContext.builder()
                 .nfeData(nfeData)
-                .sefazStatus("AUTHORIZED")
-                .issuerCnpjStatus("ACTIVE")
-                .payerCnpjStatus("ACTIVE")
-                .issuerTotalInvoices(0)
-                .issuerDefaultCount(0)
-                .issuerAvgValue(BigDecimal.ZERO)
-                .payerTotalInvoices(0)
-                .payerDefaultCount(0)
-                .payerLatePaymentCount(0)
-                .pairTotalInvoices(0)
-                .pairDefaultCount(0)
-                .requestedAdvanceValue(
-                        request.requestedAdvanceValue() != null
-                                ? request.requestedAdvanceValue()
-                                : BigDecimal.ZERO)
+                .sefazStatus(nfeData.getStatus())
+                .issuerCnpjStatus(CnpjStatus.ACTIVE)
+                .payerCnpjStatus(CnpjStatus.ACTIVE)
+                .requestedAdvanceValue(request.requestedAdvanceValue())
                 .requestedMonthlyRate(request.requestedMonthlyRate())
                 .hasUnavailableSource(false)
                 .build();
-    }
-    private String extractChaveFromXml(String xmlBase64) {
-        return "NFe" + UUID.randomUUID().toString().replace("-", "").substring(0, 41);
-    }
-
-    private BigDecimal extractValorFromXml(String xmlBase64) {
-        return new BigDecimal("10000.00");
     }
 }

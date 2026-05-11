@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 @Builder
 public record ScoringContext(
 
-        '`NFeData nfeData,
+        NFeData nfeData,
 
         SefazStatus sefazStatus,
         CnpjStatus issuerCnpjStatus,

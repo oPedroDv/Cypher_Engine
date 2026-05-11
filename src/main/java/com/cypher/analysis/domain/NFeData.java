@@ -72,11 +72,12 @@ public class NFeData {
         public Builder dataVencimento(LocalDate v)        { data.dataVencimento = v; return this; }
         public Builder status(InvoiceStatus v)            { data.status = v; return this; }
 
-        public NFeBuild() {
+        public NFeData build() {
             if (data.chaveAcesso == null || data.chaveAcesso.isBlank()) {
                 throw new IllegalStateException("A chave de acesso é necessaria no NFeData.");
-        } return data;
-    }
+            }
+            return data;
+        }
     public NFeData buildUnsafe() {
         return data;
         }

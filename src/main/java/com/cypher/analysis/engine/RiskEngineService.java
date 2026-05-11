@@ -2,6 +2,7 @@ package com.cypher.analysis.engine;
 
 import com.cypher.analysis.engine.rules.RiskRule;
 import com.cypher.analysis.engine.rules.RuleResult;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +11,7 @@ import java.util.List;
 @Service
 public class RiskEngineService {
 
-    private static final logger log = LoggerFactory.getLogger(RiskEngineService.class);
+    private static final Logger log = LoggerFactory.getLogger(RiskEngineService.class);
 
     private final RuleRegistry registry;
 
@@ -25,11 +26,11 @@ public class RiskEngineService {
                 context.issuerCnpjStatus());
 
         List<RuleResult> results = registry.getActiveRules().stream()
-                .map(rule -> executeRule(rule, context))
+                .map(rule -> executableRule(rule, context))
                 .toList();
 
         double finalScore = computeWeightedScore(results);
-        boolean hasAnyFallback = results.stream().anyMatch(RuleResult::isFallBack);
+        boolean hasAnyFallback = results.stream().anyMatch(RuleResult::isFallback);
         log.debug("Score final: {}. Fallback: {}. Regras executadas: {}",
                 finalScore, hasAnyFallback, results.size());
         return new EngineResult(
