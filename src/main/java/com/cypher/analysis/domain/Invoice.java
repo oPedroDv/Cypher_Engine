@@ -6,7 +6,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "invoice")
+@Table(
+        name = "invoice",
+        indexes = {
+                @Index(name = "idx_invoice_chave_nfe", columnList = "chave_nfe")
+        }
+)
 public class Invoice {
 
     @Id
@@ -22,33 +27,19 @@ public class Invoice {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected Invoice() {
-        // JPA only
-    }
+    protected Invoice() {}
 
     private Invoice(String rawXml, String chaveNfe) {
-        this.rawXml = rawXml;
+        this.rawXml   = rawXml;
         this.chaveNfe = chaveNfe;
         this.createdAt = Instant.now();
     }
 
-    public static Invoice of(String xml) {
-        // aqui você deveria extrair a chave do XML
-        String chave = extractChave(xml);
-
-        return new Invoice(xml, chave);
+    public static Invoice of(String xml, String chaveNfe) {
+        return new Invoice(xml, chaveNfe);
     }
 
-    private static String extractChave(String xml) {
-        // placeholder - você VAI precisar parsear isso depois
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 44);
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public String getRawXml() {
-        return rawXml;
-    }
+    public UUID getId()        { return id; }
+    public String getRawXml()  { return rawXml; }
+    public String getChaveNfe(){ return chaveNfe; } 
 }

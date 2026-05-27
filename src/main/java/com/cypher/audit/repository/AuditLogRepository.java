@@ -1,4 +1,3 @@
-
 package com.cypher.audit.repository;
 
 import com.cypher.audit.domain.AuditAction;
@@ -22,18 +21,21 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             String entityId,
             Pageable pageable
     );
+
     Page<AuditLog> findByEntityTypeAndEntityIdAndActionOrderByOccurredAtDesc(
-            String entityTtpe,
+            String entityType,
             String entityId,
             AuditAction action,
-            Pageable pagebale
+            Pageable pageable
     );
+
     Page<AuditLog> findByActionAndOccurredAtBetweenOrderByOccurredAtDesc(
             AuditAction action,
             Instant from,
             Instant to,
             Pageable pageable
     );
+
     List<AuditLog> findByCorrelationIdOrderByOccurredAtAsc(String correlationId);
 
     @Query("""
@@ -48,6 +50,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             @Param("cnpj") String cnpj,
             @Param("since") Instant since
     );
+
     @Query("""
         SELECT a FROM AuditLog a
         WHERE a.action IN (
@@ -63,5 +66,5 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             @Param("since") Instant since
     );
 
-    boolean existByCorrelationAndAction(String correlactionId, AuditAction action);
+    boolean existsByCorrelationIdAndAction(String correlationId, AuditAction action);
 }

@@ -4,16 +4,19 @@ import com.cypher.analysis.api.dto.AnalysisRequest;
 import com.cypher.analysis.api.dto.AnalysisResponse;
 import com.cypher.analysis.domain.*;
 import com.cypher.analysis.engine.RiskEngineService;
+import com.cypher.analysis.engine.SefazStatus;
 import com.cypher.analysis.engine.ScoringContext;
 import com.cypher.analysis.repository.InvoiceRepository;
 import com.cypher.analysis.repository.RiskAnalysisRepository;
+import com.cypher.company.domain.CnpjStatus;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -35,12 +38,12 @@ public class AnalysisService {
             FinancialMetricsService financialMetricsService,
             XmlStorageService xmlStorageService,
             IdempotencyService idempotencyService) {
-        this.invoiceRepository = invoiceRepository;
-        this.riskRepository = riskRepository;
-        this.riskEngine = riskEngine;
+        this.invoiceRepository     = invoiceRepository;
+        this.riskRepository        = riskRepository;
+        this.riskEngine            = riskEngine;
         this.financialMetricsService = financialMetricsService;
-        this.xmlStorageService = xmlStorageService;
-        this.idempotencyService = idempotencyService;
+        this.xmlStorageService     = xmlStorageService;
+        this.idempotencyService    = idempotencyService;
     }
 
     @Transactional
@@ -48,18 +51,18 @@ public class AnalysisService {
         String existingAnalysisId = idempotencyService.checkOrReverse(request.idempotencyKey());
         if (existingAnalysisId != null) {
             return findById(UUID.fromString(existingAnalysisId))
-                    .orElseThrow(() -> new IllegalStateException("Erro ao recuperar análise idempotente"));
+                    .orElseThrow(() -> new IllegalStateException("Erro ao recuperar análise idempotente: " + existingAnalysisId));
         }
 
         try {
-            String xmlPath = xmlStorageService.store(request.xmlBase64());
+            NFeData nfeData = NFeParser.parse(request.xmlBase64());
 
-            Invoice invoice = Invoice.of(request.xmlBase64());
-            validateDuplicity(invoice.getChaveNfe());
+            validateDuplicity(nfeData.getChaveAcesso());
 
+            Invoice invoice = Invoice.of(request.xmlBase64(), nfeData.getChaveAcesso());
             Invoice savedInvoice = invoiceRepository.save(invoice);
 
-            NFeData nfeData = NFeParser.parse(request.xmlBase64());
+            xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getChaveAcesso());
 
             ScoringContext context = buildScoringContext(nfeData, request);
 
@@ -72,24 +75,39 @@ public class AnalysisService {
                     engineResult.score()
             );
 
+            List<RiskFactor> factors = engineResult.factors().stream()
+                    .map(RiskFactor::from)
+                    .toList();
+
             RiskAnalysis analysis = RiskAnalysis.of(
                     savedInvoice,
                     engineResult.score(),
-                    engineResult.modelVersion()
+                    engineResult.modelVersion(),
+                    factors,
+                    metrics,
+                    engineResult.dataPartial()
             );
 
             RiskAnalysis savedAnalysis = riskRepository.save(analysis);
+
+            idempotencyService.confirm(request.idempotencyKey(), savedAnalysis.getId().toString());
+
+            log.info("Análise concluída. id={} score={} level={} dataPartial={}",
+                    savedAnalysis.getId(),
+                    savedAnalysis.getScore(),
+                    savedAnalysis.getRiskLevel(),
+                    savedAnalysis.isDataPartial());
 
             return AnalysisResponse.from(savedAnalysis, false);
 
         } catch (Exception e) {
             idempotencyService.release(request.idempotencyKey());
-            log.error("Falha na análise de risco: {}", e.getMessage());
+            log.error("Falha na análise de risco para chave={}: {}", request.idempotencyKey(), e.getMessage());
             throw e;
         }
     }
 
-    public java.util.Optional<AnalysisResponse> findById(UUID id) {
+    public Optional<AnalysisResponse> findById(UUID id) {
         return riskRepository.findById(id)
                 .map(analysis -> AnalysisResponse.from(analysis, true));
     }
@@ -106,9 +124,9 @@ public class AnalysisService {
     private ScoringContext buildScoringContext(NFeData nfeData, AnalysisRequest request) {
         return ScoringContext.builder()
                 .nfeData(nfeData)
-                .sefazStatus(nfeData.getStatus())
-                .issuerCnpjStatus(CnpjStatus.ACTIVE)
-                .payerCnpjStatus(CnpjStatus.ACTIVE)
+                .sefazStatus(SefazStatus.from(nfeData.getStatus()))
+                .issuerCnpjStatus(CnpjStatus.ATIVA)
+                .payerCnpjStatus(CnpjStatus.ATIVA)
                 .requestedAdvanceValue(request.requestedAdvanceValue())
                 .requestedMonthlyRate(request.requestedMonthlyRate())
                 .hasUnavailableSource(false)

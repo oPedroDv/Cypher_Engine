@@ -26,13 +26,15 @@ public class RiskEngineService {
                 context.issuerCnpjStatus());
 
         List<RuleResult> results = registry.getActiveRules().stream()
-                .map(rule -> executableRule(rule, context))
+                .map(rule -> executeRule(rule, context))
                 .toList();
 
-        double finalScore = computeWeightedScore(results);
-        boolean hasAnyFallback = results.stream().anyMatch(RuleResult::isFallback);
+        double finalScore       = computeWeightedScore(results);
+        boolean hasAnyFallback  = results.stream().anyMatch(RuleResult::isFallback);
+
         log.debug("Score final: {}. Fallback: {}. Regras executadas: {}",
                 finalScore, hasAnyFallback, results.size());
+
         return new EngineResult(
                 finalScore,
                 results,
@@ -41,29 +43,30 @@ public class RiskEngineService {
         );
     }
 
-    private RuleResult executableRule(RiskRule rule, ScoringContext context) {
+    private RuleResult executeRule(RiskRule rule, ScoringContext context) {
         try {
             RuleResult result = rule.evaluate(context);
-            log.trace("Regra [{}] score={} contributio={}",
+            log.trace("Regra [{}] score={} contribution={}",
                     rule.getName(), result.score(), result.contribution());
             return result;
         } catch (Exception e) {
-            log.warn("Regra [{}] falhou com exceção. Aplicanda fallback. Erro: {}",
+            log.warn("Regra [{}] falhou com exceção. Aplicando fallback. Erro: {}",
                     rule.getName(), e.getMessage());
-            return RuleResult.fallback(rule.getName(), "ERROR", 0.0);
+            return RuleResult.fallback(rule.getName(), "ERROR", rule.getWeight());
         }
     }
 
     private double computeWeightedScore(List<RuleResult> results) {
-        double totalContribution = results.stream()
+        double total = results.stream()
                 .mapToDouble(RuleResult::contribution)
                 .sum();
-        return Math.min(1.0, Math.max(0.0, totalContribution));
+        return Math.min(1.0, Math.max(0.0, total));
     }
+
     public record EngineResult(
             double score,
             List<RuleResult> factors,
             String modelVersion,
             boolean dataPartial
-    ){}
+    ) {}
 }

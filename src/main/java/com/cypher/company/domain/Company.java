@@ -8,23 +8,23 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Entity
 @Table(
         name = "companies",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uq_companies_cnpj_tenant",
-                        columnNames = {"cnpj","tenant_id"}
+                        columnNames = {"cnpj", "tenant_id"}
                 )
         },
         indexes = {
-                @Index(name = "idx_companies_cnpj", columnList = "cnpj"),
-                @Index(name = "idx_companies_tenant_id", columnList = "tenant_id"),
+                @Index(name = "idx_companies_cnpj",        columnList = "cnpj"),
+                @Index(name = "idx_companies_tenant_id",   columnList = "tenant_id"),
                 @Index(name = "idx_companies_cnpj_status", columnList = "cnpj_status")
         }
 )
 public class Company {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false, updatable = false)
@@ -56,7 +56,7 @@ public class Company {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false, updatable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     protected Company() {}
@@ -79,19 +79,19 @@ public class Company {
         Instant now = Instant.now();
         if (this.createdAt == null) this.createdAt = now;
         if (this.updatedAt == null) this.updatedAt = now;
-        if (this.cnpjStatus == null) this.cnpjStatus = cnpjStatus.DESCONHECIDO;
+        if (this.cnpjStatus == null) this.cnpjStatus = CnpjStatus.DESCONHECIDO;
     }
 
-    @PrePersist
+    @PreUpdate
     private void preUpdate() {
         this.updatedAt = Instant.now();
     }
 
     public void atualizarStatus(CnpjStatus novoStatus, Map<String, Object> dadosReceita) {
-        this.cnpjStatus = novoStatus;
+        this.cnpjStatus         = novoStatus;
         this.receitaFederalData = dadosReceita;
-        this.statusCheckedAt = Instant.now();
-        this.updatedAt = Instant.now();
+        this.statusCheckedAt    = Instant.now();
+        this.updatedAt          = Instant.now();
     }
 
     public boolean statusDesatualizado(long ttlHoras) {
@@ -99,16 +99,16 @@ public class Company {
         return statusCheckedAt.isBefore(Instant.now().minusSeconds(ttlHoras * 3600L));
     }
 
-    public UUID getId()                           { return id; }
-    public String getCnpj()                       { return cnpj; }
-    public String getRazaoSocial()                { return razaoSocial; }
-    public String getNomeFantasia()               { return nomeFantasia; }
-    public CnpjStatus getCnpjStatus()             { return cnpjStatus; }
-    public Instant getStatusCheckedAt()           { return statusCheckedAt; }
+    public UUID getId()                                { return id; }
+    public String getCnpj()                            { return cnpj; }
+    public String getRazaoSocial()                     { return razaoSocial; }
+    public String getNomeFantasia()                    { return nomeFantasia; }
+    public CnpjStatus getCnpjStatus()                  { return cnpjStatus; }
+    public Instant getStatusCheckedAt()                { return statusCheckedAt; }
     public Map<String, Object> getReceitaFederalData() { return receitaFederalData; }
-    public UUID getTenantId()                     { return tenantId; }
-    public Instant getCreatedAt()                 { return createdAt; }
-    public Instant getUpdatedAt()                 { return updatedAt; }
+    public UUID getTenantId()                          { return tenantId; }
+    public Instant getCreatedAt()                      { return createdAt; }
+    public Instant getUpdatedAt()                      { return updatedAt; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -126,21 +126,21 @@ public class Company {
 
         private Builder() {}
 
-        public Builder id(UUID id)                                          { this.id = id; return this; }
-        public Builder cnpj(String cnpj)                                    { this.cnpj = cnpj; return this; }
-        public Builder razaoSocial(String razaoSocial)                      { this.razaoSocial = razaoSocial; return this; }
-        public Builder nomeFantasia(String nomeFantasia)                    { this.nomeFantasia = nomeFantasia; return this; }
-        public Builder cnpjStatus(CnpjStatus cnpjStatus)                   { this.cnpjStatus = cnpjStatus; return this; }
-        public Builder statusCheckedAt(Instant statusCheckedAt)             { this.statusCheckedAt = statusCheckedAt; return this; }
-        public Builder receitaFederalData(Map<String, Object> data)        { this.receitaFederalData = data; return this; }
-        public Builder tenantId(UUID tenantId)                              { this.tenantId = tenantId; return this; }
-        public Builder createdAt(Instant createdAt)                         { this.createdAt = createdAt; return this; }
-        public Builder updatedAt(Instant updatedAt)                         { this.updatedAt = updatedAt; return this; }
+        public Builder id(UUID id)                              { this.id = id; return this; }
+        public Builder cnpj(String cnpj)                        { this.cnpj = cnpj; return this; }
+        public Builder razaoSocial(String razaoSocial)          { this.razaoSocial = razaoSocial; return this; }
+        public Builder nomeFantasia(String nomeFantasia)        { this.nomeFantasia = nomeFantasia; return this; }
+        public Builder cnpjStatus(CnpjStatus cnpjStatus)       { this.cnpjStatus = cnpjStatus; return this; }
+        public Builder statusCheckedAt(Instant statusCheckedAt) { this.statusCheckedAt = statusCheckedAt; return this; }
+        public Builder receitaFederalData(Map<String, Object> data) { this.receitaFederalData = data; return this; }
+        public Builder tenantId(UUID tenantId)                  { this.tenantId = tenantId; return this; }
+        public Builder createdAt(Instant createdAt)             { this.createdAt = createdAt; return this; }
+        public Builder updatedAt(Instant updatedAt)             { this.updatedAt = updatedAt; return this; }
 
         public Company build() {
-            if (cnpj == null || cnpj.isBlank())        throw new IllegalStateException("cnpj é obrigatório");
+            if (cnpj == null || cnpj.isBlank())               throw new IllegalStateException("cnpj é obrigatório");
             if (razaoSocial == null || razaoSocial.isBlank()) throw new IllegalStateException("razaoSocial é obrigatória");
-            if (tenantId == null)                       throw new IllegalStateException("tenantId é obrigatório");
+            if (tenantId == null)                             throw new IllegalStateException("tenantId é obrigatório");
             return new Company(this);
         }
     }

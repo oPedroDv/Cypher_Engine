@@ -6,19 +6,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.UUID;
 
 @Service
 public class IdempotencyService {
 
     private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
 
-    private static final String PREFIX = "cypher:idempotency";
-
-    private static final String PROCESSING = "PROCESSING";
-
-    private static final Duration RESULT_TTL = Duration.ofHours(24);
-
+    private static final String PREFIX         = "cypher:idempotency:";
+    private static final String PROCESSING     = "PROCESSING";
+    private static final Duration RESULT_TTL   = Duration.ofHours(24);
     private static final Duration PROCESSING_TTL = Duration.ofMinutes(2);
 
     private final StringRedisTemplate redis;
@@ -28,9 +24,7 @@ public class IdempotencyService {
     }
 
     public String checkOrReverse(String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return null;
-        }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
 
         String redisKey = PREFIX + idempotencyKey;
         String existing = redis.opsForValue().get(redisKey);
@@ -38,18 +32,31 @@ public class IdempotencyService {
         if (existing != null) {
             if (PROCESSING.equals(existing)) {
                 log.warn("Chave de idempotência em processamento: {}", idempotencyKey);
-                throw new IdempotencyConflictException("Ánalise em andamento para esta chave. Tente novamente em instantes.", idempotencyKey, null);
+                throw new IdempotencyConflictException(
+                        "Análise em andamento para esta chave. Tente novamente em instantes.",
+                        idempotencyKey, null);
             }
-            log.debug("Chave idempotente encontrada: {} → {}", idempotencyKey, existing);
+            log.debug("Hit idempotente: {} → analysisId={}", idempotencyKey, existing);
             return existing;
         }
 
-        Boolean reserverd = redis.opsForValue().setIfAbsent(redisKey, PROCESSING, PROCESSING_TTL);
-        if (Boolean.FALSE.equals(reserverd)) {
-            throw new IdempotencyConflictException("Análise em andamento para esta chave. Tente novamente em instantes", idempotencyKey, null);
+        Boolean reserved = redis.opsForValue().setIfAbsent(redisKey, PROCESSING, PROCESSING_TTL);
+        if (Boolean.FALSE.equals(reserved)) {
+            throw new IdempotencyConflictException(
+                    "Análise em andamento para esta chave. Tente novamente em instantes.",
+                    idempotencyKey, null);
         }
-        log.debug("Chave de idempotencia reservada: {}", idempotencyKey);
+
+        log.debug("Chave de idempotência reservada: {}", idempotencyKey);
         return null;
+    }
+
+    public void confirm(String idempotencyKey, String analysisId) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+
+        String redisKey = PREFIX + idempotencyKey;
+        redis.opsForValue().set(redisKey, analysisId, RESULT_TTL);
+        log.debug("Chave de idempotência confirmada: {} → analysisId={}", idempotencyKey, analysisId);
     }
 
     public void release(String idempotencyKey) {
@@ -57,7 +64,7 @@ public class IdempotencyService {
 
         String redisKey = PREFIX + idempotencyKey;
         redis.delete(redisKey);
-        log.debug("Chave de idempotencia liberada após erro: {}", idempotencyKey);
+        log.debug("Chave de idempotência liberada após erro: {}", idempotencyKey);
     }
 
     public static class IdempotencyConflictException extends RuntimeException {
@@ -67,11 +74,11 @@ public class IdempotencyService {
 
         public IdempotencyConflictException(String message, String key, String existingId) {
             super(message);
-            this.idempotencyKey = key;
-            this.existingAnalysisId = existingId;
+            this.idempotencyKey      = key;
+            this.existingAnalysisId  = existingId;
         }
 
-        public String getIdempotencyKey() {return idempotencyKey;}
-        public String getExistingAnalysisId() {return existingAnalysisId;}
+        public String getIdempotencyKey()     { return idempotencyKey; }
+        public String getExistingAnalysisId() { return existingAnalysisId; }
     }
 }

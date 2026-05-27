@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
         if (ex instanceof DuplicateInvoiceException dup) {
             log.warn("NF-e duplicada detectada. Chave: {}. Análise existente: {}", dup.getChaveNfe(), dup.getExistingAnalysisId());
 
-            return ResponseEntity.status(ex.getStaus()).body(Map.of(
+            return ResponseEntity.status(ex.getStatus()).body(Map.of(
                     "timestamp", Instant.now().toString(),
                     "status", ex.getStatus().value(),
                     "error_code", ex.getErrorCode(),
@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe,getField() + ": " + fe.getDefaultmessage())
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .toList();
 
         log.warn("Erro de validação: {}", errors);

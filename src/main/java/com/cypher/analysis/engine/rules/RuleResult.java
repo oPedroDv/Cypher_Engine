@@ -20,12 +20,13 @@ public record RuleResult(
             String explanation,
             String dataSource
     ) {
+        double clamped = clamp(score);
         return new RuleResult(
                 ruleName,
                 category,
-                clamp(score),
+                clamped,
                 weight,
-                clamp(score) * weight,
+                clamped * weight,
                 direction,
                 explanation,
                 dataSource
@@ -46,11 +47,11 @@ public record RuleResult(
         );
     }
 
-    private static double clamp(double value) {
-        return Math.min(1.0, Math.max(0.0, value));
-    }
-
     public boolean isFallback() {
         return "FALLBACK".equals(dataSource);
+    }
+
+    private static double clamp(double value) {
+        return Math.min(1.0, Math.max(0.0, value));
     }
 }

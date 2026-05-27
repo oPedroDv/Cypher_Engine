@@ -1,7 +1,9 @@
 package com.cypher.analysis.engine;
 
 import com.cypher.analysis.domain.NFeData;
+import com.cypher.company.domain.CnpjStatus;
 import lombok.Builder;
+
 import java.math.BigDecimal;
 
 @Builder
@@ -33,12 +35,12 @@ public record ScoringContext(
 
     public ScoringContext {
         if (nfeData == null) {
-            throw new IllegalArgumentException("nfeData é obrigatório");
+            throw new IllegalArgumentException("nfeData é obrigatório no ScoringContext");
         }
 
-        sefazStatus = sefazStatus == null ? SefazStatus.UNAVAILABLE : sefazStatus;
-        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.UNAVAILABLE : issuerCnpjStatus;
-        payerCnpjStatus = payerCnpjStatus == null ? CnpjStatus.UNAVAILABLE : payerCnpjStatus;
+        sefazStatus      = sefazStatus      == null ? SefazStatus.UNAVAILABLE    : sefazStatus;
+        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.DESCONHECIDO    : issuerCnpjStatus;
+        payerCnpjStatus  = payerCnpjStatus  == null ? CnpjStatus.DESCONHECIDO    : payerCnpjStatus;
     }
 
     public double issuerDefaultRate() {

@@ -8,12 +8,16 @@ public class DuplicateInvoiceException extends CypherException {
     private final String existingAnalysisId;
 
     public DuplicateInvoiceException(String chaveNfe, String existingAnalysisId) {
-        String.format("NF-e com chave '%s' já foi analisada. Use o ID existente: %s", chaveNfe, existingAnalysisId,
-                HttpStatus.CONFLICT, "DUPLICATE_INVOICE");
-        this.chaveNfe = chaveNfe;
+        super(
+                "NF-e com chave '%s' já foi analisada. Use o ID existente: %s"
+                        .formatted(chaveNfe, existingAnalysisId),
+                HttpStatus.CONFLICT,
+                "DUPLICATE_INVOICE"
+        );
+        this.chaveNfe           = chaveNfe;
         this.existingAnalysisId = existingAnalysisId;
     }
 
-    public String getChaveNfe() {return chaveNfe;}
-    public String getExistingAnalysisId() {return existingAnalysisId;}
+    public String getChaveNfe()           { return chaveNfe; }
+    public String getExistingAnalysisId() { return existingAnalysisId; }
 }

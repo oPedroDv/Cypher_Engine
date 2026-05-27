@@ -1,48 +1,55 @@
 package com.cypher.analysis.engine.rules;
 
 import com.cypher.analysis.engine.ScoringContext;
+import com.cypher.analysis.engine.SefazStatus;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SefazStatusRule implements RiskRule {
-    
-    private static final double WEIGHT = 0.30;
+
+    private static final double WEIGHT = 0.25;
 
     @Override
     public RuleResult evaluate(ScoringContext context) {
-        String status = context.sefazStatus();
+        SefazStatus status = context.sefazStatus();
 
-        if ("UNAVAILABLE".equals(status)) {
-            return RuleResult.fallback(getName(),"nfe_version", WEIGHT);
+        if (status == SefazStatus.UNAVAILABLE) {
+            return RuleResult.fallback(getName(), "nfe_validation", WEIGHT);
         }
 
         double score;
         String explanation;
 
         switch (status) {
-            case "AUTHORIZED" -> {
-                explanation = "NF-e autorizada e em situação regular no SEFAZ.";
+            case AUTHORIZED -> {
+                score       = 0.0;
+                explanation = "NF-e autorizada e em situação regular na SEFAZ.";
             }
-            case "PENDING" -> {
-                explanation = "Status da NF-e não confirmado no SEFAZ - Operação de antecipação inválida.";
+            case PENDING -> {
+                score       = 0.60;
+                explanation = "Status da NF-e não confirmado na SEFAZ — antecipação sobre documento pendente é inválida.";
             }
-            case "CANCELLED" -> {
-                explanation = "NF-e cancelada no SEFAZ - operação de antecipação inválida.";
+            case CANCELLED -> {
+                score       = 1.0;
+                explanation = "NF-e cancelada na SEFAZ — operação de antecipação inválida.";
             }
-            case "DENIED" -> {
-                explanation = "NF-e denegada no SEFAZ - indica irregularidade fiscal grave";
+            case DENIED -> {
+                score       = 1.0;
+                explanation = "NF-e denegada na SEFAZ — indica irregularidade fiscal grave.";
             }
             default -> {
-                explanation = "Status SEFAZ desconhecido: " + status;
+                score       = 0.50;
+                explanation = "Status SEFAZ desconhecido: " + status + " — score conservador aplicado.";
             }
         }
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
 
+        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
         return RuleResult.of(getName(), "nfe_validation", score, WEIGHT, direction, explanation, "SEFAZ");
     }
 
     @Override
-    public String getName() {
-        return "sefaz_name";
-    }
+    public String getName() { return "sefaz_status"; }
+
+    @Override
+    public double getWeight() { return WEIGHT; }
 }
