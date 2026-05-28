@@ -24,11 +24,6 @@ public class CompanyService {
     private final CompanyRepository companyRepository;
     private final FederalRevenueClient federalRevenueClient;
 
-    /**
-     * Resolve a empresa pelo CNPJ dentro do tenant.
-     * Cria um novo registro se não existir ainda.
-     * Atualiza o status se estiver desatualizado (TTL expirado).
-     */
     @Transactional
     public Company resolveCompany(String cnpj, UUID tenantId) {
         log.debug("Resolvendo empresa cnpj={} tenant={}", cnpj, tenantId);
@@ -45,9 +40,6 @@ public class CompanyService {
         return company;
     }
 
-    /**
-     * Busca empresa existente. Lança 404 se não encontrada.
-     */
     @Transactional(readOnly = true)
     public Company findByCnpj(String cnpj, UUID tenantId) {
         return companyRepository
@@ -59,9 +51,6 @@ public class CompanyService {
                 ));
     }
 
-    /**
-     * Retorna apenas o CnpjStatus, evitando carregar a entidade completa.
-     */
     @Transactional(readOnly = true)
     public CnpjStatus checkStatus(String cnpj, UUID tenantId) {
         return companyRepository
@@ -69,9 +58,6 @@ public class CompanyService {
                 .orElse(CnpjStatus.UNKNOWN);
     }
 
-    /**
-     * Força atualização do status via Receita Federal, ignorando TTL.
-     */
     @Transactional
     public Company forceStatusRefresh(String cnpj, UUID tenantId) {
         log.info("Forçando atualização de status cnpj={} tenant={}", cnpj, tenantId);
@@ -80,17 +66,10 @@ public class CompanyService {
         return company;
     }
 
-    /**
-     * Retorna empresas com status desatualizado (para job de atualização em batch).
-     */
     @Transactional(readOnly = true)
     public List<Company> listStale() {
         return companyRepository.findStale(Instant.now().minusSeconds(STATUS_TTL_HOURS * 3600L));
     }
-
-    // -------------------------------------------------------------------------
-    // Privados
-    // -------------------------------------------------------------------------
 
     private Company createCompany(String cnpj, UUID tenantId) {
         log.info("Criando novo registro de empresa cnpj={} tenant={}", cnpj, tenantId);
