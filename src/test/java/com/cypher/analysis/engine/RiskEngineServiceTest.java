@@ -115,14 +115,14 @@ class RiskEngineServiceTest {
     private static ScoringContext context(boolean hasUnavailableSource) {
         return ScoringContext.builder()
                 .nfeData(NFeData.builder()
-                        .chaveAcesso("12345678901234567890123456789012345678901234")
-                        .valorTotal(new BigDecimal("10000.00"))
-                        .dataVencimento(LocalDate.now().plusDays(30))
+                        .accessKey("12345678901234567890123456789012345678901234")
+                        .totalAmount(new BigDecimal("10000.00"))
+                        .dueDate(LocalDate.now().plusDays(30))
                         .status(InvoiceStatus.AUTHORIZED)
                         .build())
                 .sefazStatus(SefazStatus.AUTHORIZED)
-                .issuerCnpjStatus(CnpjStatus.ATIVA)
-                .payerCnpjStatus(CnpjStatus.ATIVA)
+                .issuerCnpjStatus(CnpjStatus.ACTIVE)
+                .payerCnpjStatus(CnpjStatus.ACTIVE)
                 .hasUnavailableSource(hasUnavailableSource)
                 .build();
     }

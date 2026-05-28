@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler
     public ResponseEntity<Map<String, Object>> handleCypherException(CypherException ex, HttpServletRequest request) {
         if (ex instanceof DuplicateInvoiceException dup) {
-            log.warn("NF-e duplicada detectada. Chave: {}. Análise existente: {}", dup.getChaveNfe(), dup.getExistingAnalysisId());
+            log.warn("NF-e duplicada detectada. Chave: {}. Análise existente: {}", dup.getNfeKey(), dup.getExistingAnalysisId());
 
             return ResponseEntity.status(ex.getStatus()).body(Map.of(
                     "timestamp", Instant.now().toString(),
@@ -77,4 +77,3 @@ public class GlobalExceptionHandler {
         ));
     }
 }
-

@@ -2,14 +2,15 @@ package com.cypher.analysis.service;
 
 import com.cypher.analysis.api.dto.AnalysisRequest;
 import com.cypher.analysis.api.dto.AnalysisResponse;
+import com.cypher.analysis.application.AnalyzeInvoiceUseCase;
+import com.cypher.analysis.application.port.InvoicePersistencePort;
+import com.cypher.analysis.application.port.RiskAnalysisPersistencePort;
 import com.cypher.analysis.domain.FinancialMetrics;
 import com.cypher.analysis.domain.Invoice;
 import com.cypher.analysis.domain.RiskAnalysis;
 import com.cypher.analysis.engine.ScoringContext;
 import com.cypher.analysis.engine.RiskEngineService;
 import com.cypher.analysis.engine.rules.RuleResult;
-import com.cypher.analysis.repository.InvoiceRepository;
-import com.cypher.analysis.repository.RiskAnalysisRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidNFeException;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,13 +39,13 @@ import static org.mockito.Mockito.when;
 class AnalysisServiceTest {
 
     private static final String CHAVE_NFE = "12345678901234567890123456789012345678901234";
-    private static final String XML = "<nfe><chNFe>" + CHAVE_NFE + "</chNFe></nfe>";
+    private static final String XML = "<nfe><chNFe>" + CHAVE_NFE + "</chNFe><vNF>10000.0</vNF></nfe>";
 
     @Mock
-    private InvoiceRepository invoiceRepository;
+    private InvoicePersistencePort invoiceRepository;
 
     @Mock
-    private RiskAnalysisRepository riskRepository;
+    private RiskAnalysisPersistencePort riskRepository;
 
     @Mock
     private RiskEngineService riskEngine;
@@ -62,13 +63,18 @@ class AnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AnalysisService(
+        AnalyzeInvoiceUseCase analyzeInvoiceUseCase = new AnalyzeInvoiceUseCase(
                 invoiceRepository,
                 riskRepository,
                 riskEngine,
                 financialMetricsService,
                 xmlStorageService,
                 idempotencyService
+        );
+
+        service = new AnalysisService(
+                analyzeInvoiceUseCase,
+                riskRepository
         );
     }
 
@@ -86,7 +92,7 @@ class AnalysisServiceTest {
         );
 
         when(idempotencyService.checkOrReverse("idem-1")).thenReturn(null);
-        when(invoiceRepository.findByChaveNfe(CHAVE_NFE)).thenReturn(Optional.empty());
+        when(invoiceRepository.findByNfeKey(CHAVE_NFE)).thenReturn(Optional.empty());
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
             Invoice invoice = invocation.getArgument(0);
             ReflectionTestUtils.setField(invoice, "id", invoiceId);
@@ -126,13 +132,13 @@ class AnalysisServiceTest {
 
         ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
         verify(riskEngine).score(contextCaptor.capture());
-        assertThat(contextCaptor.getValue().nfeData().getChaveAcesso()).isEqualTo(CHAVE_NFE);
+        assertThat(contextCaptor.getValue().nfeData().getAccessKey()).isEqualTo(CHAVE_NFE);
         assertThat(contextCaptor.getValue().requestedAdvanceValue()).isEqualByComparingTo("8500.00");
         assertThat(contextCaptor.getValue().requestedMonthlyRate()).isEqualTo(3.2);
 
         ArgumentCaptor<RiskAnalysis> analysisCaptor = ArgumentCaptor.forClass(RiskAnalysis.class);
         verify(riskRepository).save(analysisCaptor.capture());
-        assertThat(analysisCaptor.getValue().getInvoice().getChaveNfe()).isEqualTo(CHAVE_NFE);
+        assertThat(analysisCaptor.getValue().getInvoice().getNfeKey()).isEqualTo(CHAVE_NFE);
         assertThat(analysisCaptor.getValue().getScore()).isEqualTo(0.25);
         assertThat(analysisCaptor.getValue().getModelVersion()).isEqualTo("model-v1");
         assertThat(analysisCaptor.getValue().getFinancialMetrics()).isSameAs(metrics);
@@ -162,7 +168,7 @@ class AnalysisServiceTest {
         RiskAnalysis existingAnalysis = persistedAnalysis(UUID.randomUUID(), invoiceId);
 
         when(idempotencyService.checkOrReverse("idem-1")).thenReturn(null);
-        when(invoiceRepository.findByChaveNfe(CHAVE_NFE)).thenReturn(Optional.of(existingInvoice));
+        when(invoiceRepository.findByNfeKey(CHAVE_NFE)).thenReturn(Optional.of(existingInvoice));
         when(riskRepository.findTopByInvoiceIdOrderByCreatedAtDesc(invoiceId)).thenReturn(Optional.of(existingAnalysis));
 
         assertThatThrownBy(() -> service.analyze(request("idem-1")))
@@ -181,7 +187,7 @@ class AnalysisServiceTest {
         AnalysisRequest request = request("idem-1");
 
         when(idempotencyService.checkOrReverse("idem-1")).thenReturn(null);
-        when(invoiceRepository.findByChaveNfe(CHAVE_NFE)).thenReturn(Optional.empty());
+        when(invoiceRepository.findByNfeKey(CHAVE_NFE)).thenReturn(Optional.empty());
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
             Invoice invoice = invocation.getArgument(0);
             ReflectionTestUtils.setField(invoice, "id", invoiceId);

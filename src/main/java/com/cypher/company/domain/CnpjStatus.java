@@ -2,18 +2,18 @@ package com.cypher.company.domain;
 
 public enum CnpjStatus {
 
-    ATIVA,
-    SUSPENSA,
-    INAPTA,
-    BAIXADA,
-    NULA,
-    DESCONHECIDO;
+    ACTIVE,
+    SUSPENDED,
+    UNFIT,
+    CLOSED,
+    NULLIFIED,
+    UNKNOWN;
 
-    public boolean isApta() {
-        return this == ATIVA;
+    public boolean isFit() {
+        return this == ACTIVE;
     }
 
-    public boolean isCritico() {
-        return this == BAIXADA || this == NULA;
+    public boolean isCritical() {
+        return this == CLOSED || this == NULLIFIED;
     }
 }

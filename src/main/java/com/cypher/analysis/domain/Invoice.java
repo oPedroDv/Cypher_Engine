@@ -22,24 +22,24 @@ public class Invoice {
     private String rawXml;
 
     @Column(name = "chave_nfe", length = 44, unique = true)
-    private String chaveNfe;
+    private String nfeKey;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     protected Invoice() {}
 
-    private Invoice(String rawXml, String chaveNfe) {
+    private Invoice(String rawXml, String nfeKey) {
         this.rawXml   = rawXml;
-        this.chaveNfe = chaveNfe;
+        this.nfeKey = nfeKey;
         this.createdAt = Instant.now();
     }
 
-    public static Invoice of(String xml, String chaveNfe) {
-        return new Invoice(xml, chaveNfe);
+    public static Invoice of(String xml, String nfeKey) {
+        return new Invoice(xml, nfeKey);
     }
 
     public UUID getId()        { return id; }
     public String getRawXml()  { return rawXml; }
-    public String getChaveNfe(){ return chaveNfe; } 
+    public String getNfeKey()  { return nfeKey; }
 }

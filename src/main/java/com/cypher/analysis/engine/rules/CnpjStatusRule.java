@@ -14,8 +14,8 @@ public class CnpjStatusRule implements RiskRule {
         CnpjStatus issuerStatus = context.issuerCnpjStatus();
         CnpjStatus payerStatus  = context.payerCnpjStatus();
 
-        double issuerScore = scoreParaStatus(issuerStatus);
-        double payerScore  = scoreParaStatus(payerStatus);
+        double issuerScore = scoreForStatus(issuerStatus);
+        double payerScore  = scoreForStatus(payerStatus);
 
         if (issuerScore >= payerScore) {
             return buildResult(issuerScore, "cedente", issuerStatus);
@@ -24,31 +24,31 @@ public class CnpjStatusRule implements RiskRule {
         }
     }
 
-    private RuleResult buildResult(double score, String parte, CnpjStatus status) {
+    private RuleResult buildResult(double score, String party, CnpjStatus status) {
         String direction = score > 0.0 ? "INCREASE" : "DECREASE";
         return RuleResult.of(getName(), "cnpj_validation", score, WEIGHT, direction,
-                buildExplanation(parte, status), "RECEITA_FEDERAL");
+                buildExplanation(party, status), "RECEITA_FEDERAL");
     }
 
-    private String buildExplanation(String parte, CnpjStatus status) {
+    private String buildExplanation(String party, CnpjStatus status) {
         return switch (status) {
-            case ATIVA        -> "CNPJ do %s ativo e regular na Receita Federal.".formatted(parte);
-            case SUSPENSA     -> "CNPJ do %s suspenso — pendências fiscais.".formatted(parte);
-            case INAPTA       -> "CNPJ do %s inapto — irregularidades graves.".formatted(parte);
-            case BAIXADA      -> "CNPJ do %s baixado — empresa encerrada. Antecipação inviável.".formatted(parte);
-            case NULA         -> "CNPJ do %s nulo ou cancelado — possível fraude.".formatted(parte);
-            case DESCONHECIDO -> "Situação cadastral do %s não verificada — score conservador aplicado.".formatted(parte);
+            case ACTIVE    -> "CNPJ do %s ativo e regular na Receita Federal.".formatted(party);
+            case SUSPENDED -> "CNPJ do %s suspenso — pendências fiscais.".formatted(party);
+            case UNFIT     -> "CNPJ do %s inapto — irregularidades graves.".formatted(party);
+            case CLOSED    -> "CNPJ do %s baixado — empresa encerrada. Antecipação inviável.".formatted(party);
+            case NULLIFIED -> "CNPJ do %s nulo ou cancelado — possível fraude.".formatted(party);
+            case UNKNOWN   -> "Situação cadastral do %s não verificada — score conservador aplicado.".formatted(party);
         };
     }
 
-    private double scoreParaStatus(CnpjStatus status) {
+    private double scoreForStatus(CnpjStatus status) {
         return switch (status) {
-            case ATIVA        -> 0.00;
-            case SUSPENSA     -> 0.35;
-            case INAPTA       -> 0.70;
-            case BAIXADA      -> 1.00;
-            case NULA         -> 1.00;
-            case DESCONHECIDO -> 0.50;
+            case ACTIVE    -> 0.00;
+            case SUSPENDED -> 0.35;
+            case UNFIT     -> 0.70;
+            case CLOSED    -> 1.00;
+            case NULLIFIED -> 1.00;
+            case UNKNOWN   -> 0.50;
         };
     }
 

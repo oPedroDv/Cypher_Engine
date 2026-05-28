@@ -22,11 +22,11 @@ public enum SefazStatus {
         };
     }
 
-    public boolean isApta() {
+    public boolean isFit() {
         return this == AUTHORIZED;
     }
 
-    public boolean bloqueiaAntecipacao() {
+    public boolean blocksAdvance() {
         return this == CANCELLED || this == DENIED;
     }
 }

@@ -24,23 +24,23 @@ public class NFeParser {
         try {
             Document document = buildDocument(xml);
 
-            String chave = extractRequired(document, "chNFe");
-            String emitente = extractOptional(document, "xNome", "EMITENTE DESCONHECIDO");
+            String accessKey = extractRequired(document, "chNFe");
+            String issuer = extractOptional(document, "xNome", "EMITENTE DESCONHECIDO");
 
-            BigDecimal valorTotal = extractBigDecimal(document, "vNF", BigDecimal.ZERO);
+            BigDecimal totalAmount = extractBigDecimal(document, "vNF", BigDecimal.ZERO);
 
             return NFeData.builder()
-                    .chaveAcesso(normalizeChave(chave))
-                    .cnpjEmitente(extractOptional(document, "CNPJ", "00000000000000"))
-                    .razaoSocialEmitente(emitente)
-                    .cnpjDestinatario("11111111111111")
-                    .razaoSocialDestinatario("DESTINATARIO")
-                    .valorTotal(valorTotal)
-                    .valorProdutos(valorTotal)
-                    .valorFrete(BigDecimal.ZERO)
-                    .valorDesconto(BigDecimal.ZERO)
-                    .dataEmissao(LocalDate.now())
-                    .dataVencimento(LocalDate.now().plusDays(30))
+                    .accessKey(normalizeKey(accessKey))
+                    .issuerCnpj(extractOptional(document, "CNPJ", "00000000000000"))
+                    .issuerLegalName(issuer)
+                    .recipientCnpj("11111111111111")
+                    .recipientLegalName("DESTINATARIO")
+                    .totalAmount(totalAmount)
+                    .productsAmount(totalAmount)
+                    .freightAmount(BigDecimal.ZERO)
+                    .discountAmount(BigDecimal.ZERO)
+                    .issueDate(LocalDate.now())
+                    .dueDate(LocalDate.now().plusDays(30))
                     .status(InvoiceStatus.AUTHORIZED)
                     .buildUnsafe();
 
@@ -120,8 +120,8 @@ public class NFeParser {
         }
     }
 
-    private static String normalizeChave(String chave) {
-        String normalized = chave.replaceAll("\\D", "");
+    private static String normalizeKey(String key) {
+        String normalized = key.replaceAll("\\D", "");
 
         if (normalized.length() != 44) {
             throw new InvalidNFeException("Chave NF-e inválida");

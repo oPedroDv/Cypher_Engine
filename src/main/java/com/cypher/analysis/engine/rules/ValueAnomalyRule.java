@@ -20,7 +20,7 @@ public class ValueAnomalyRule implements RiskRule {
                     "INTERNAL_HISTORY");
         }
 
-        double value = context.nfeData().getValorTotal().doubleValue();
+        double value = context.nfeData().getTotalAmount().doubleValue();
         double avg   = avgValue.doubleValue();
         double ratio = value / avg;
 

@@ -25,18 +25,16 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     );
     @Query("""
             SELECT c FROM Company c
-            WHERE c.tenantId = :tenantId
-              AND (c.statusCheckedAt IS NULL OR c.statusCheckedAt < :threshold)
+            WHERE c.statusCheckedAt IS NULL OR c.statusCheckedAt < :threshold
             ORDER BY c.statusCheckedAt ASC NULLS FIRST
             """)
-    List<Company> findDesatualizadas(
-            @Param("threshold") Instant threshold,
-            @Param("tenantId") UUID tenantId
+    List<Company> findStale(
+            @Param("threshold") Instant threshold
     );
     List<Company> findByTenantId(UUID tenantId);
     List<Company> findByCnpjStatusAndTenantId(CnpjStatus status, UUID tenantId);
 
-    @Query("SELECT COUNT(c) FROM Company c WHERE c.tenantId = :tenantId AND c.cnpjStatus = 'ATIVA'")
-    long countAtivasByTenantId(@Param("tenantId") UUID tenantId);
+    @Query("SELECT COUNT(c) FROM Company c WHERE c.tenantId = :tenantId AND c.cnpjStatus = 'ACTIVE'")
+    long countActiveByTenantId(@Param("tenantId") UUID tenantId);
     List<Company> findByCnpj(String cnpj);
 }

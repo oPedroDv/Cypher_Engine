@@ -1,5 +1,6 @@
 package com.cypher.analysis.service;
 
+import com.cypher.analysis.application.port.IdempotencyPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 
 @Service
-public class IdempotencyService {
+public class IdempotencyService implements IdempotencyPort {
 
     private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
 
@@ -23,6 +24,7 @@ public class IdempotencyService {
         this.redis = redis;
     }
 
+    @Override
     public String checkOrReverse(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
 
@@ -51,6 +53,7 @@ public class IdempotencyService {
         return null;
     }
 
+    @Override
     public void confirm(String idempotencyKey, String analysisId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
 
@@ -59,6 +62,7 @@ public class IdempotencyService {
         log.debug("Chave de idempotência confirmada: {} → analysisId={}", idempotencyKey, analysisId);
     }
 
+    @Override
     public void release(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
 

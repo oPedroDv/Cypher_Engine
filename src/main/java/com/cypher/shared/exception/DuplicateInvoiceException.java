@@ -4,20 +4,20 @@ import org.springframework.http.HttpStatus;
 
 public class DuplicateInvoiceException extends CypherException {
 
-    private final String chaveNfe;
+    private final String nfeKey;
     private final String existingAnalysisId;
 
-    public DuplicateInvoiceException(String chaveNfe, String existingAnalysisId) {
+    public DuplicateInvoiceException(String nfeKey, String existingAnalysisId) {
         super(
                 "NF-e com chave '%s' já foi analisada. Use o ID existente: %s"
-                        .formatted(chaveNfe, existingAnalysisId),
+                        .formatted(nfeKey, existingAnalysisId),
                 HttpStatus.CONFLICT,
                 "DUPLICATE_INVOICE"
         );
-        this.chaveNfe           = chaveNfe;
+        this.nfeKey             = nfeKey;
         this.existingAnalysisId = existingAnalysisId;
     }
 
-    public String getChaveNfe()           { return chaveNfe; }
+    public String getNfeKey()             { return nfeKey; }
     public String getExistingAnalysisId() { return existingAnalysisId; }
 }

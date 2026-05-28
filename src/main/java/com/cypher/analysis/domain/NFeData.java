@@ -5,48 +5,48 @@ import java.time.LocalDate;
 
 public class NFeData {
 
-    private String chaveAcesso;
-    private String numero;
-    private String serie;
-    private String naturezaOperacao;
-    private String cnpjEmitente;
-    private String razaoSocialEmitente;
-    private String ufEmitente;
-    private String cnpjDestinatario;
-    private String razaoSocialDestinatario;
-    private String ufDestinatario;
-    private BigDecimal valorTotal;
-    private BigDecimal valorProdutos;
-    private BigDecimal valorFrete;
-    private BigDecimal valorDesconto;
-    private LocalDate dataEmissao;
-    private LocalDate dataVencimento;
+    private String accessKey;
+    private String number;
+    private String series;
+    private String operationNature;
+    private String issuerCnpj;
+    private String issuerLegalName;
+    private String issuerState;
+    private String recipientCnpj;
+    private String recipientLegalName;
+    private String recipientState;
+    private BigDecimal totalAmount;
+    private BigDecimal productsAmount;
+    private BigDecimal freightAmount;
+    private BigDecimal discountAmount;
+    private LocalDate issueDate;
+    private LocalDate dueDate;
     private InvoiceStatus status;
 
     public NFeData() {
-        this.valorTotal = BigDecimal.ZERO;
-        this.valorProdutos = BigDecimal.ZERO;
-        this.valorFrete = BigDecimal.ZERO;
-        this.valorDesconto = BigDecimal.ZERO;
+        this.totalAmount = BigDecimal.ZERO;
+        this.productsAmount = BigDecimal.ZERO;
+        this.freightAmount = BigDecimal.ZERO;
+        this.discountAmount = BigDecimal.ZERO;
         this.status = InvoiceStatus.PENDING;
     }
 
-    public String getChaveAcesso()               { return chaveAcesso; }
-    public String getNumero()                    { return numero; }
-    public String getSerie()                     { return serie; }
-    public String getNaturezaOperacao()          { return naturezaOperacao; }
-    public String getCnpjEmitente()              { return cnpjEmitente; }
-    public String getRazaoSocialEmitente()       { return razaoSocialEmitente; }
-    public String getUfEmitente()                { return ufEmitente; }
-    public String getCnpjDestinatario()          { return cnpjDestinatario; }
-    public String getRazaoSocialDestinatario()   { return razaoSocialDestinatario; }
-    public String getUfDestinatario()            { return ufDestinatario; }
-    public BigDecimal getValorTotal()            { return valorTotal; }
-    public BigDecimal getValorProdutos()         { return valorProdutos; }
-    public BigDecimal getValorFrete()            { return valorFrete; }
-    public BigDecimal getValorDesconto()         { return valorDesconto; }
-    public LocalDate getDataEmissao()            { return dataEmissao; }
-    public LocalDate getDataVencimento()         { return dataVencimento; }
+    public String getAccessKey()                 { return accessKey; }
+    public String getNumber()                    { return number; }
+    public String getSeries()                    { return series; }
+    public String getOperationNature()           { return operationNature; }
+    public String getIssuerCnpj()                { return issuerCnpj; }
+    public String getIssuerLegalName()           { return issuerLegalName; }
+    public String getIssuerState()               { return issuerState; }
+    public String getRecipientCnpj()             { return recipientCnpj; }
+    public String getRecipientLegalName()        { return recipientLegalName; }
+    public String getRecipientState()            { return recipientState; }
+    public BigDecimal getTotalAmount()           { return totalAmount; }
+    public BigDecimal getProductsAmount()        { return productsAmount; }
+    public BigDecimal getFreightAmount()         { return freightAmount; }
+    public BigDecimal getDiscountAmount()        { return discountAmount; }
+    public LocalDate getIssueDate()              { return issueDate; }
+    public LocalDate getDueDate()                { return dueDate; }
     public InvoiceStatus getStatus()             { return status; }
 
     public static Builder builder() {return new Builder();}
@@ -54,33 +54,33 @@ public class NFeData {
     public static class Builder {
         private final NFeData data = new NFeData();
 
-        public Builder chaveAcesso(String v)              { data.chaveAcesso = v; return this; }
-        public Builder numero(String v)                   { data.numero = v; return this; }
-        public Builder serie(String v)                    { data.serie = v; return this; }
-        public Builder naturezaOperacao(String v)         { data.naturezaOperacao = v; return this; }
-        public Builder cnpjEmitente(String v)             { data.cnpjEmitente = v; return this; }
-        public Builder razaoSocialEmitente(String v)      { data.razaoSocialEmitente = v; return this; }
-        public Builder ufEmitente(String v)               { data.ufEmitente = v; return this; }
-        public Builder cnpjDestinatario(String v)         { data.cnpjDestinatario = v; return this; }
-        public Builder razaoSocialDestinatario(String v)  { data.razaoSocialDestinatario = v; return this; }
-        public Builder ufDestinatario(String v)           { data.ufDestinatario = v; return this; }
-        public Builder valorTotal(BigDecimal v)           { data.valorTotal = v; return this; }
-        public Builder valorProdutos(BigDecimal v)        { data.valorProdutos = v; return this; }
-        public Builder valorFrete(BigDecimal v)           { data.valorFrete = v; return this; }
-        public Builder valorDesconto(BigDecimal v)        { data.valorDesconto = v; return this; }
-        public Builder dataEmissao(LocalDate v)           { data.dataEmissao = v; return this; }
-        public Builder dataVencimento(LocalDate v)        { data.dataVencimento = v; return this; }
+        public Builder accessKey(String v)                { data.accessKey = v; return this; }
+        public Builder number(String v)                   { data.number = v; return this; }
+        public Builder series(String v)                   { data.series = v; return this; }
+        public Builder operationNature(String v)          { data.operationNature = v; return this; }
+        public Builder issuerCnpj(String v)               { data.issuerCnpj = v; return this; }
+        public Builder issuerLegalName(String v)          { data.issuerLegalName = v; return this; }
+        public Builder issuerState(String v)              { data.issuerState = v; return this; }
+        public Builder recipientCnpj(String v)            { data.recipientCnpj = v; return this; }
+        public Builder recipientLegalName(String v)       { data.recipientLegalName = v; return this; }
+        public Builder recipientState(String v)           { data.recipientState = v; return this; }
+        public Builder totalAmount(BigDecimal v)          { data.totalAmount = v; return this; }
+        public Builder productsAmount(BigDecimal v)       { data.productsAmount = v; return this; }
+        public Builder freightAmount(BigDecimal v)        { data.freightAmount = v; return this; }
+        public Builder discountAmount(BigDecimal v)       { data.discountAmount = v; return this; }
+        public Builder issueDate(LocalDate v)             { data.issueDate = v; return this; }
+        public Builder dueDate(LocalDate v)               { data.dueDate = v; return this; }
         public Builder status(InvoiceStatus v)            { data.status = v; return this; }
 
         public NFeData build() {
-            if (data.chaveAcesso == null || data.chaveAcesso.isBlank()) {
+            if (data.accessKey == null || data.accessKey.isBlank()) {
                 throw new IllegalStateException("A chave de acesso é necessaria no NFeData.");
             }
             return data;
         }
-    public NFeData buildUnsafe() {
-        return data;
+
+        public NFeData buildUnsafe() {
+            return data;
         }
     }
 }
-

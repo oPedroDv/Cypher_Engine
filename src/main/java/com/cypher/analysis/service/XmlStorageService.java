@@ -1,5 +1,6 @@
 package com.cypher.analysis.service;
 
+import com.cypher.analysis.application.port.XmlStoragePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,7 +10,7 @@ import java.util.Base64;
 import java.util.UUID;
 
 @Service
-public class XmlStorageService {
+public class XmlStorageService implements XmlStoragePort {
 
     private static final Logger log = LoggerFactory.getLogger(XmlStorageService.class);
 
@@ -20,9 +21,10 @@ public class XmlStorageService {
     private String localBasePath;
 
 
-    public String store(String xmlBase64, UUID invoiceId, String chaveNfe) {
+    @Override
+    public String store(String xmlBase64, UUID invoiceId, String nfeKey) {
         byte[] xmlBytes = decodeBase64(xmlBase64);
-        String filename = chaveNfe != null ? chaveNfe + ".xml" : "raw.xml";
+        String filename = nfeKey != null ? nfeKey + ".xml" : "raw.xml";
         String path     = invoiceId + "/" + filename;
 
         if ("local".equals(storageType)) {

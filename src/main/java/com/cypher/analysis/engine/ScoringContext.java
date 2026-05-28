@@ -39,8 +39,8 @@ public record ScoringContext(
         }
 
         sefazStatus      = sefazStatus      == null ? SefazStatus.UNAVAILABLE    : sefazStatus;
-        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.DESCONHECIDO    : issuerCnpjStatus;
-        payerCnpjStatus  = payerCnpjStatus  == null ? CnpjStatus.DESCONHECIDO    : payerCnpjStatus;
+        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.UNKNOWN    : issuerCnpjStatus;
+        payerCnpjStatus  = payerCnpjStatus  == null ? CnpjStatus.UNKNOWN    : payerCnpjStatus;
     }
 
     public double issuerDefaultRate() {

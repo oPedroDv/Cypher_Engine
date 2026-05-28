@@ -13,7 +13,7 @@ public class MaturityRiskRule implements RiskRule {
 
     @Override
     public RuleResult evaluate(ScoringContext context) {
-        LocalDate dueDate = context.nfeData().getDataVencimento();
+        LocalDate dueDate = context.nfeData().getDueDate();
 
         if (dueDate == null) {
             return RuleResult.of(getName(), "liquidity_risk", 0.40, WEIGHT, "INCREASE",
