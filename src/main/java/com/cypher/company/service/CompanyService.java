@@ -3,10 +3,9 @@ package com.cypher.company.service;
 import com.cypher.company.domain.Company;
 import com.cypher.company.domain.CnpjStatus;
 import com.cypher.company.repository.CompanyRepository;
-import com.cypher.shared.exception.CypherException;
+import com.cypher.shared.exception.CompanyNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,7 @@ public class CompanyService {
 
     @Transactional
     public Company resolveCompany(String cnpj, UUID tenantId) {
-        log.debug("Resolvendo empresa cnpj={} tenant={}", cnpj, tenantId);
+        log.debug("Resolvendo empresa cnpj={} tenantId={}", cnpj, tenantId);
 
         Company company = companyRepository
                 .findByCnpjAndTenantId(cnpj, tenantId)
@@ -36,23 +35,17 @@ public class CompanyService {
             log.info("Status desatualizado para cnpj={}, consultando Receita Federal", cnpj);
             updateExternalStatus(company);
         }
-
         return company;
     }
-
     @Transactional(readOnly = true)
     public Company findByCnpj(String cnpj, UUID tenantId) {
         return companyRepository
                 .findByCnpjAndTenantId(cnpj, tenantId)
-                .orElseThrow(() -> new CypherException(
-                        "Empresa não encontrada para cnpj=" + cnpj,
-                        HttpStatus.NOT_FOUND,
-                        "COMPANY_NOT_FOUND"
-                ));
+                .orElseThrow(() -> new CompanyNotFoundException(cnpj));
     }
 
     @Transactional(readOnly = true)
-    public CnpjStatus checkStatus(String cnpj, UUID tenantId) {
+    public CnpjStatus checkStatus(String cnpj, UUID tenantId){
         return companyRepository
                 .findCnpjStatusByCnpjAndTenantId(cnpj, tenantId)
                 .orElse(CnpjStatus.UNKNOWN);
@@ -71,8 +64,8 @@ public class CompanyService {
         return companyRepository.findStale(Instant.now().minusSeconds(STATUS_TTL_HOURS * 3600L));
     }
 
-    private Company createCompany(String cnpj, UUID tenantId) {
-        log.info("Criando novo registro de empresa cnpj={} tenant={}", cnpj, tenantId);
+    private Company createCompany(String cnpj, UUID tenantId){
+        log.info("Criando um novo registro de empresa cnpj={} tenant={}", cnpj, tenantId);
 
         FederalRevenueClient.CnpjData data = queryFederalRevenue(cnpj);
 
@@ -98,7 +91,7 @@ public class CompanyService {
         try {
             return federalRevenueClient.query(cnpj);
         } catch (Exception ex) {
-            log.warn("Falha ao consultar Receita Federal para cnpj={}, usando fallback. erro={}", cnpj, ex.getMessage());
+            log.warn("Falha ao consultar Receita federal para cnpj={}, usando fallback. erro={}", cnpj, ex.getMessage());
             return FederalRevenueClient.CnpjData.unknown(cnpj);
         }
     }
