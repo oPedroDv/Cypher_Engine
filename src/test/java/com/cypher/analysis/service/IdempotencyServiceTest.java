@@ -1,8 +1,14 @@
 package com.cypher.analysis.service;
 
+import com.cypher.shared.exception.IdempotencyConflictException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -12,15 +18,16 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class IdempotencyServiceTest {
 
-    private static final String REDIS_KEY = "cypher:idempotency:request-1";
+    private static final String KEY = "req-123";
+    private static final String REDIS_KEY = "cypher:idempotency:" + KEY;
+    private static final String ANALYSIS_ID = "analysis-456";
 
     @Mock
     private StringRedisTemplate redis;
@@ -32,66 +39,106 @@ class IdempotencyServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(redis.opsForValue()).thenReturn(valueOperations);
         service = new IdempotencyService(redis);
     }
 
-    @Test
-    void checkOrReverseReturnsNullAndReservesNewKey() {
-        when(redis.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
-        when(valueOperations.setIfAbsent(REDIS_KEY, "PROCESSING", Duration.ofMinutes(2))).thenReturn(true);
+    @Nested
+    @DisplayName("checkOrReverse")
+    class CheckOrReverse {
 
-        String result = service.checkOrReverse("request-1");
+        @Test
+        @DisplayName("Should return null and reserve key when it doesn't exist")
+        void shouldReserveWhenNew() {
+            when(valueOperations.get(REDIS_KEY)).thenReturn(null);
+            when(valueOperations.setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), any(Duration.class)))
+                    .thenReturn(true);
 
-        assertThat(result).isNull();
-        verify(valueOperations).setIfAbsent(REDIS_KEY, "PROCESSING", Duration.ofMinutes(2));
+            String result = service.checkOrReverse(KEY);
+
+            assertThat(result).isNull();
+            verify(valueOperations).setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), eq(Duration.ofMinutes(2)));
+        }
+
+        @Test
+        @DisplayName("Should return analysisId when key already exists with a result")
+        void shouldReturnExistingId() {
+            when(valueOperations.get(REDIS_KEY)).thenReturn(ANALYSIS_ID);
+
+            String result = service.checkOrReverse(KEY);
+
+            assertThat(result).isEqualTo(ANALYSIS_ID);
+            verify(valueOperations, never()).setIfAbsent(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Should throw conflict when key is currently being processed")
+        void shouldThrowConflictWhenProcessing() {
+            when(valueOperations.get(REDIS_KEY)).thenReturn("PROCESSING");
+
+            assertThatThrownBy(() -> service.checkOrReverse(KEY))
+                    .isInstanceOf(IdempotencyConflictException.class);
+        }
+
+        @Test
+        @DisplayName("Should throw conflict when setIfAbsent returns false (race condition)")
+        void shouldThrowConflictOnRaceCondition() {
+            when(valueOperations.get(REDIS_KEY)).thenReturn(null);
+            when(valueOperations.setIfAbsent(any(), any(), any())).thenReturn(false);
+
+            assertThatThrownBy(() -> service.checkOrReverse(KEY))
+                    .isInstanceOf(IdempotencyConflictException.class);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {" ", "\t"})
+        @DisplayName("Should return null immediately for invalid keys")
+        void shouldIgnoreInvalidKeys(String invalidKey) {
+            assertThat(service.checkOrReverse(invalidKey)).isNull();
+            verifyNoInteractions(redis);
+        }
     }
 
-    @Test
-    void checkOrReverseReturnsExistingAnalysisId() {
-        when(redis.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(REDIS_KEY)).thenReturn("analysis-123");
+    @Nested
+    @DisplayName("confirm")
+    class Confirm {
 
-        String result = service.checkOrReverse("request-1");
+        @Test
+        @DisplayName("Should store analysisId with 24h TTL")
+        void shouldStoreResult() {
+            service.confirm(KEY, ANALYSIS_ID);
 
-        assertThat(result).isEqualTo("analysis-123");
-        verify(valueOperations, never()).setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), eq(Duration.ofMinutes(2)));
+            verify(valueOperations).set(eq(REDIS_KEY), eq(ANALYSIS_ID), eq(Duration.ofHours(24)));
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("Should do nothing for invalid keys")
+        void shouldIgnoreInvalidKeys(String invalidKey) {
+            service.confirm(invalidKey, ANALYSIS_ID);
+            verifyNoInteractions(valueOperations);
+        }
     }
 
-    @Test
-    void checkOrReverseThrowsConflictWhenKeyIsProcessing() {
-        when(redis.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(REDIS_KEY)).thenReturn("PROCESSING");
+    @Nested
+    @DisplayName("release")
+    class Release {
 
-        assertThatThrownBy(() -> service.checkOrReverse("request-1"))
-                .isInstanceOf(IdempotencyService.IdempotencyConflictException.class)
-                .hasMessageContaining("Análise em andamento");
-    }
+        @Test
+        @DisplayName("Should delete key from redis")
+        void shouldDeleteKey() {
+            service.release(KEY);
 
-    @Test
-    void confirmStoresAnalysisIdWithResultTtl() {
-        when(redis.opsForValue()).thenReturn(valueOperations);
+            verify(redis).delete(REDIS_KEY);
+        }
 
-        service.confirm("request-1", "analysis-123");
-
-        verify(valueOperations).set(REDIS_KEY, "analysis-123", Duration.ofHours(24));
-    }
-
-    @Test
-    void releaseDeletesReservedKey() {
-        service.release("request-1");
-
-        verify(redis).delete(REDIS_KEY);
-    }
-
-    @Test
-    void blankKeysDoNotTouchRedis() {
-        assertThat(service.checkOrReverse(" ")).isNull();
-
-        service.confirm(null, "analysis-123");
-        service.release("");
-
-        verify(redis, never()).opsForValue();
-        verify(redis, never()).delete("");
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("Should do nothing for invalid keys")
+        void shouldIgnoreInvalidKeys(String invalidKey) {
+            service.release(invalidKey);
+            verify(redis, never()).delete(anyString());
+        }
     }
 }
