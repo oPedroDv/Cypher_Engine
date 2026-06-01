@@ -4,6 +4,7 @@ import com.cypher.analysis.api.dto.AnalysisRequest;
 import com.cypher.analysis.api.dto.AnalysisResponse;
 import com.cypher.analysis.domain.RiskAnalysis;
 import com.cypher.analysis.service.AnalysisService;
+import com.cypher.infrastructure.persistence.TenantContext;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -24,7 +25,7 @@ public class AnalysisController {
 
     @PostMapping
     public ResponseEntity<AnalysisResponse> findBy(@Valid @RequestBody AnalysisRequest request) {
-        AnalysisResponse response = service.analyze(request);
+        AnalysisResponse response = service.analyze(request, TenantContext.get());
         return  ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

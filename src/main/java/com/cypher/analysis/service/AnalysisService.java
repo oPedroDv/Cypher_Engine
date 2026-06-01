@@ -61,7 +61,7 @@ public class AnalysisService {
             xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getAccessKey());
 
             CnpjStatus issuerStatus = resolveStatus(nfeData.getIssuerCnpj(), tenantId);
-            CnpjStatus payerStatus  = resolveStatus(nfeData.getPayerCnpj(), tenantId);
+            CnpjStatus payerStatus  = resolveStatus(nfeData.getRecipientCnpj(), tenantId);
 
             ScoringContext context = buildScoringContext(nfeData, request, issuerStatus, payerStatus);
             RiskEngineService.EngineResult engineResult = riskEngine.score(context);
@@ -114,7 +114,7 @@ public class AnalysisService {
     }
 
     private void validateDuplicity(String accessKey) {
-        invoiceRepository.findByChaveNfe(accessKey).ifPresent(invoice ->
+        invoiceRepository.findByNfeKey(accessKey).ifPresent(invoice ->
                 riskAnalysisRepository.findTopByInvoiceIdOrderByCreatedAtDesc(invoice.getId())
                         .ifPresent(analysis -> {
                             throw new DuplicateInvoiceException(accessKey, analysis.getId().toString());
