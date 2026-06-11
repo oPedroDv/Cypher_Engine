@@ -11,6 +11,7 @@ import com.cypher.analysis.repository.RiskAnalysisRepository;
 import com.cypher.company.domain.CnpjStatus;
 import com.cypher.company.domain.Company;
 import com.cypher.company.service.CompanyService;
+import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidNFeException;
 import com.cypher.testutil.TestEntityHelper;
@@ -64,6 +65,9 @@ class AnalysisServiceTest {
     @Mock
     private CompanyService companyService;
 
+    @Mock
+    private OutcomeRepository outcomeRepository;
+
     @InjectMocks
     private AnalysisService service;
 
@@ -114,6 +118,10 @@ class AnalysisServiceTest {
             ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
             verify(riskEngine).score(contextCaptor.capture());
             assertThat(contextCaptor.getValue().nfeData().getAccessKey()).isEqualTo(CHAVE_NFE);
+
+            ArgumentCaptor<Invoice> invoiceCaptor = ArgumentCaptor.forClass(Invoice.class);
+            verify(invoiceRepository).save(invoiceCaptor.capture());
+            assertThat(invoiceCaptor.getValue().getIssuerCnpj()).isEqualTo("00000000000000");
         }
 
         @Test

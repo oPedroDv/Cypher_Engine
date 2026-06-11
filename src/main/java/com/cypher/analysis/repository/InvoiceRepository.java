@@ -8,4 +8,8 @@ import java.util.UUID;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     Optional<Invoice> findByNfeKey(String nfeKey);
+
+    int countByIssuerCnpj(String issuerCnpj);
+    int countByRecipientCnpj(String recipientCnpj);
+    int countByIssuerCnpjAndRecipientCnpj(String issuerCnpj, String recipientCnpj);
 }

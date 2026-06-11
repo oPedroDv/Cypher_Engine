@@ -1,4 +1,3 @@
-
 package com.cypher.infrastructure.persistence;
 
 import jakarta.servlet.FilterChain;
@@ -29,7 +28,6 @@ public class TenantFilterConfig {
 
         private static final String TENANT_CLAIM = "tenant_id";
 
-
         @Override
         protected void doFilterInternal(
                 HttpServletRequest request,
@@ -37,12 +35,12 @@ public class TenantFilterConfig {
                 FilterChain filterChain
         ) throws ServletException, IOException {
             try {
-                extractTenantId().ifPresentOrElse(
+                extractTenantId(request).ifPresentOrElse(
                         tenantId -> {
                             TenantContext.set(tenantId);
                             log.debug("TenantContext populado: tenantId={}", tenantId);
                         },
-                        () -> log.debug("Request sem tenant_id (Endpoint publico ou não autenticado")
+                        () -> log.debug("Request sem tenant_id (Endpoint publico ou não autenticado)")
                 );
 
                 filterChain.doFilter(request, response);
@@ -51,19 +49,25 @@ public class TenantFilterConfig {
             }
         }
 
-        private java.util.Optional<UUID> extractTenantId() {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
-            if (auth == null || !auth.isAuthenticated()) {
-                return java.util.Optional.empty();
+        private java.util.Optional<UUID> extractTenantId(HttpServletRequest request) {
+            // 1. Tentar pelo Header (X-Tenant-Id) - Prioridade para desenvolvimento/public endpoints
+            String headerTenant = request.getHeader("X-Tenant-Id");
+            if (headerTenant != null && !headerTenant.isBlank()) {
+                try {
+                    return java.util.Optional.of(UUID.fromString(headerTenant));
+                } catch (IllegalArgumentException e) {
+                    log.error("X-Tenant-Id no header não é UUID válido '{}'", headerTenant);
+                }
             }
 
-            if (!(auth.getPrincipal() instanceof Jwt jwt)) {
+            // 2. Tentar pelo JWT (Fallback para endpoints autenticados)
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
                 return java.util.Optional.empty();
             }
 
             String tenantClaim = jwt.getClaimAsString(TENANT_CLAIM);
-            if(tenantClaim == null || tenantClaim.isBlank()) {
+            if (tenantClaim == null || tenantClaim.isBlank()) {
                 log.warn("JWT autenticado sem claim '{}' - possivelmente token mal formado", TENANT_CLAIM);
                 return java.util.Optional.empty();
             }
@@ -75,6 +79,7 @@ public class TenantFilterConfig {
                 return java.util.Optional.empty();
             }
         }
+
         @Override
         protected boolean shouldNotFilter(HttpServletRequest request) {
             String path = request.getRequestURI();

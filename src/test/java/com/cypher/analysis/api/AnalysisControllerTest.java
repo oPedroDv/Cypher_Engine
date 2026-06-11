@@ -63,9 +63,9 @@ class AnalysisControllerTest {
     void createAnalysisReturnsCreatedAndDelegatesValidatedRequest() throws Exception {
         UUID analysisId = UUID.randomUUID();
         AnalysisRequest request = new AnalysisRequest(XML, "idem-1", new BigDecimal("8500.00"), 3.2);
-        when(service.analyze(any(AnalysisRequest.class))).thenReturn(response(analysisId, UUID.randomUUID(), false));
+        when(service.analyze(any(AnalysisRequest.class), any())).thenReturn(response(analysisId, UUID.randomUUID(), false));
 
-        mockMvc.perform(post("/v1/analyses")
+        mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -75,7 +75,7 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.financial.requestedAdvanceValue").value(8500.00));
 
         ArgumentCaptor<AnalysisRequest> requestCaptor = ArgumentCaptor.forClass(AnalysisRequest.class);
-        verify(service).analyze(requestCaptor.capture());
+        verify(service).analyze(requestCaptor.capture(), any());
         assertThat(requestCaptor.getValue().xmlBase64()).isEqualTo(XML);
         assertThat(requestCaptor.getValue().idempotencyKey()).isEqualTo("idem-1");
         assertThat(requestCaptor.getValue().requestedAdvanceValue()).isEqualByComparingTo("8500.00");
@@ -85,7 +85,7 @@ class AnalysisControllerTest {
     void createAnalysisRejectsBlankXmlBeforeCallingService() throws Exception {
         AnalysisRequest request = new AnalysisRequest(" ", "idem-1", new BigDecimal("8500.00"), 3.2);
 
-        mockMvc.perform(post("/v1/analyses")
+        mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -98,16 +98,16 @@ class AnalysisControllerTest {
     @Test
     void createAnalysisMapsDuplicateInvoiceToConflictResponse() throws Exception {
         AnalysisRequest request = new AnalysisRequest(XML, "idem-1", new BigDecimal("8500.00"), 3.2);
-        when(service.analyze(any(AnalysisRequest.class)))
+        when(service.analyze(any(AnalysisRequest.class), any()))
                 .thenThrow(new DuplicateInvoiceException("chave-duplicada", "analysis-123"));
 
-        mockMvc.perform(post("/v1/analyses")
+        mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error_code").value("DUPLICATE_INVOICE"))
                 .andExpect(jsonPath("$.existing_analysis_id").value("analysis-123"))
-                .andExpect(jsonPath("$.path").value("/v1/analyses"));
+                .andExpect(jsonPath("$.path").value("/api/v1/analyses"));
     }
 
     @Test
@@ -115,7 +115,7 @@ class AnalysisControllerTest {
         UUID analysisId = UUID.randomUUID();
         when(service.findById(analysisId)).thenReturn(Optional.of(response(analysisId, UUID.randomUUID(), true)));
 
-        mockMvc.perform(get("/v1/analyses/{id}", analysisId))
+        mockMvc.perform(get("/api/v1/analyses/{id}", analysisId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisId").value(analysisId.toString()))
                 .andExpect(jsonPath("$.idempotent").value(true));
@@ -128,11 +128,11 @@ class AnalysisControllerTest {
         UUID analysisId = UUID.randomUUID();
         when(service.findById(analysisId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/v1/analyses/{id}", analysisId))
+        mockMvc.perform(get("/api/v1/analyses/{id}", analysisId))
                 .andExpect(status().isNotFound());
 
         verify(service).findById(analysisId);
-        verify(service, never()).analyze(any());
+        verify(service, never()).analyze(any(), any());
     }
 
     private static AnalysisResponse response(UUID analysisId, UUID invoiceId, boolean idempotent) {

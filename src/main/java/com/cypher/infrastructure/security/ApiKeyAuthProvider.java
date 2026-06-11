@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ApiKeyAuthProvider implements AuthenticationProvider {
 
+    private final ApiKeyRepository apiKeyRepository;
+
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         ApiKeyAuthentication apiKeyAuth = (ApiKeyAuthentication) authentication;
@@ -22,8 +24,16 @@ public class ApiKeyAuthProvider implements AuthenticationProvider {
             throw new BadCredentialsException("API key não pode ser vazia");
         }
 
-        log.warn("ApiKeyAuthProvider ainda é stub — rejeita todas as keys até ApiKeyRepository ser implementado");
-        throw new BadCredentialsException("API key inválida");
+        String hash = hashKey(rawKey);
+
+        ApiKey apiKey = apiKeyRepository.findByKeyHashAndActiveTrue(hash)
+                .orElseThrow(() -> {
+                    log.warn("Tentativa de autenticação com API key inválida ou revogada");
+                    return new BadCredentialsException("API key inválida ou revogada");
+                });
+
+        log.debug("API key autenticada. tenantId={} name={}", apiKey.getTenantId(), apiKey.getName());
+        return new ApiKeyAuthentication(rawKey, apiKey.getTenantId());
     }
 
     @Override

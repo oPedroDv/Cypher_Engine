@@ -1,5 +1,6 @@
 package com.cypher.infrastructure.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -23,7 +25,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     public static final String API_KEY_HEADER = "X-API-Key";
 
     private final AuthenticationManager authenticationManager;
-
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(
@@ -35,7 +37,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
         if (apiKey == null || apiKey.isBlank()) {
-            filterChain.doFilter(request, response); //Sem api deixa o fluxo jwt do spring assumir
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -64,8 +66,9 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("""
-                {"error": "INVALID_API_KEY", "message": "%s"}
-                """.formatted(message));
+        objectMapper.writeValue(
+                response.getWriter(),
+                Map.of("error", "INVALID_API_KEY", "message", message)
+        );
     }
 }

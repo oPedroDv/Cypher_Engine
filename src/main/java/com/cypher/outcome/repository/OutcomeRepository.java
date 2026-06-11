@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,11 +46,68 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             SELECT o FROM Outcome o
             INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
             INNER JOIN Invoice i ON i.id = ra.invoice.id
-            WHERE i.payerCnpj = :cnpj
+            WHERE i.recipientCnpj = :cnpj
             AND o.tenantId = :tenantId
             ORDER BY o.eventDate DESC
             """)
     List<Outcome> findByPayerCnpj(
+            @Param("cnpj") String cnpj,
+            @Param("tenantId") UUID tenantId
+    );
+
+    @Query("""
+            SELECT COUNT(o) FROM Outcome o
+            INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
+            INNER JOIN Invoice i ON i.id = ra.invoice.id
+            WHERE i.issuerCnpj = :cnpj
+            AND o.tenantId = :tenantId
+            AND o.outcomeType IN :outcomeTypes
+            """)
+    int countByIssuerCnpjAndOutcomeTypes(
+            @Param("cnpj") String cnpj,
+            @Param("tenantId") UUID tenantId,
+            @Param("outcomeTypes") Collection<OutcomeType> outcomeTypes
+    );
+
+    @Query("""
+            SELECT COUNT(o) FROM Outcome o
+            INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
+            INNER JOIN Invoice i ON i.id = ra.invoice.id
+            WHERE i.recipientCnpj = :cnpj
+            AND o.tenantId = :tenantId
+            AND o.outcomeType IN :outcomeTypes
+            """)
+    int countByPayerCnpjAndOutcomeTypes(
+            @Param("cnpj") String cnpj,
+            @Param("tenantId") UUID tenantId,
+            @Param("outcomeTypes") Collection<OutcomeType> outcomeTypes
+    );
+
+    @Query("""
+            SELECT COUNT(o) FROM Outcome o
+            INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
+            INNER JOIN Invoice i ON i.id = ra.invoice.id
+            WHERE i.issuerCnpj = :issuerCnpj
+            AND i.recipientCnpj = :recipientCnpj
+            AND o.tenantId = :tenantId
+            AND o.outcomeType IN :outcomeTypes
+            """)
+    int countByPairAndOutcomeTypes(
+            @Param("issuerCnpj") String issuerCnpj,
+            @Param("recipientCnpj") String recipientCnpj,
+            @Param("tenantId") UUID tenantId,
+            @Param("outcomeTypes") Collection<OutcomeType> outcomeTypes
+    );
+
+    @Query("""
+            SELECT COUNT(o) FROM Outcome o
+            INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
+            INNER JOIN Invoice i ON i.id = ra.invoice.id
+            WHERE i.recipientCnpj = :cnpj
+            AND o.tenantId = :tenantId
+            AND o.daysLate > 0
+            """)
+    int countLateByPayerCnpj(
             @Param("cnpj") String cnpj,
             @Param("tenantId") UUID tenantId
     );

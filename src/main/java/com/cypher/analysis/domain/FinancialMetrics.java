@@ -1,8 +1,11 @@
 package com.cypher.analysis.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record FinancialMetrics(
         BigDecimal faceValue,
         BigDecimal requestedAdvanceValue,
