@@ -1,0 +1,132 @@
+import type { AnalysisResponse, StatisticsResponse } from '../types/analysis'
+
+const now = new Date()
+const iso = (d: Date) => d.toISOString()
+const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000)
+
+export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
+  {
+    analysisId: 'a1b2c3d4-0001-0001-0001-000000000001',
+    invoiceId: 'inv-0001',
+    idempotent: false,
+    score: 0.18,
+    riskLevel: 'LOW',
+    recommendation: 'Perfil favorável. Antecipação recomendada.',
+    modelVersion: 'v1.0',
+    dataIsPartial: false,
+    createdAt: iso(daysAgo(1)),
+    financial: {
+      faceValue: 120000,
+      requestedAdvanceValue: 100000,
+      expectedLossPct: 1.2,
+      riskAdjustedRoiPct: 2.48,
+      maxAdvanceSuggested: 108000,
+      suggestedMonthlyRatePct: 1.8,
+      advanceRatio: 0.9,
+      isViable: true,
+    },
+    factors: [
+      { name: 'Status SEFAZ', category: 'SEFAZ', score: 0.05, weight: 0.25, contribution: 0.01, direction: 'DECREASE', explanation: 'NF-e autorizada e sem irregularidades', dataSource: 'SEFAZ', isFallback: false },
+      { name: 'Histórico do Cedente', category: 'CEDENTE', score: 0.10, weight: 0.20, contribution: 0.02, direction: 'DECREASE', explanation: 'Bom histórico de pagamento', dataSource: 'RECEITA', isFallback: false },
+      { name: 'Comportamento do Sacado', category: 'SACADO', score: 0.08, weight: 0.20, contribution: 0.016, direction: 'DECREASE', explanation: 'Sacado com bom comportamento', dataSource: 'RECEITA', isFallback: false },
+    ],
+  },
+  {
+    analysisId: 'a1b2c3d4-0002-0002-0002-000000000002',
+    invoiceId: 'inv-0002',
+    idempotent: false,
+    score: 0.52,
+    riskLevel: 'MEDIUM',
+    recommendation: 'Atenção recomendada. Verifique histórico do sacado.',
+    modelVersion: 'v1.0',
+    dataIsPartial: true,
+    createdAt: iso(daysAgo(2)),
+    financial: {
+      faceValue: 75000,
+      requestedAdvanceValue: 60000,
+      expectedLossPct: 4.1,
+      riskAdjustedRoiPct: 1.9,
+      maxAdvanceSuggested: 62000,
+      suggestedMonthlyRatePct: 2.2,
+      advanceRatio: 0.82,
+      isViable: true,
+    },
+    factors: [
+      { name: 'Status SEFAZ', category: 'SEFAZ', score: 0.5, weight: 0.25, contribution: 0.12, direction: 'INCREASE', explanation: 'Pendências encontradas', dataSource: 'SEFAZ', isFallback: false },
+      { name: 'Prazo de Vencimento', category: 'PRAZO', score: 0.6, weight: 0.15, contribution: 0.09, direction: 'INCREASE', explanation: 'Prazo acima de 60 dias', dataSource: 'NFE', isFallback: false },
+    ],
+  },
+  {
+    analysisId: 'a1b2c3d4-0003-0003-0003-000000000003',
+    invoiceId: 'inv-0003',
+    idempotent: false,
+    score: 0.76,
+    riskLevel: 'HIGH',
+    recommendation: 'Exposição relevante. Considere taxa ajustada ou garantias adicionais.',
+    modelVersion: 'v1.0',
+    dataIsPartial: false,
+    createdAt: iso(daysAgo(3)),
+    financial: {
+      faceValue: 300000,
+      requestedAdvanceValue: 280000,
+      expectedLossPct: 8.5,
+      riskAdjustedRoiPct: 0.9,
+      maxAdvanceSuggested: 180000,
+      suggestedMonthlyRatePct: 3.5,
+      advanceRatio: 0.6,
+      isViable: false,
+    },
+    factors: [
+      { name: 'Anomalias de Valor', category: 'VALOR', score: 0.85, weight: 0.20, contribution: 0.17, direction: 'INCREASE', explanation: 'Valor muito acima do histórico', dataSource: 'INTERNAL', isFallback: false },
+      { name: 'Status SEFAZ', category: 'SEFAZ', score: 0.7, weight: 0.25, contribution: 0.175, direction: 'INCREASE', explanation: 'Irregularidades detectadas', dataSource: 'SEFAZ', isFallback: true },
+    ],
+  },
+  {
+    analysisId: 'a1b2c3d4-0004-0004-0004-000000000004',
+    invoiceId: 'inv-0004',
+    idempotent: false,
+    score: 0.91,
+    riskLevel: 'CRITICAL',
+    recommendation: 'Risco elevado. Não recomendado antecipar sem análise manual.',
+    modelVersion: 'v1.0',
+    dataIsPartial: true,
+    createdAt: iso(daysAgo(5)),
+    financial: null,
+    factors: [
+      { name: 'Status SEFAZ', category: 'SEFAZ', score: 0.95, weight: 0.25, contribution: 0.24, direction: 'INCREASE', explanation: 'NF-e cancelada', dataSource: 'SEFAZ', isFallback: false },
+    ],
+  },
+  {
+    analysisId: 'a1b2c3d4-0005-0005-0005-000000000005',
+    invoiceId: 'inv-0005',
+    idempotent: false,
+    score: 0.22,
+    riskLevel: 'LOW',
+    recommendation: 'Perfil favorável. Antecipação recomendada.',
+    modelVersion: 'v1.0',
+    dataIsPartial: false,
+    createdAt: iso(daysAgo(7)),
+    financial: {
+      faceValue: 55000,
+      requestedAdvanceValue: 50000,
+      expectedLossPct: 1.8,
+      riskAdjustedRoiPct: 2.1,
+      maxAdvanceSuggested: 50000,
+      suggestedMonthlyRatePct: 1.75,
+      advanceRatio: 0.91,
+      isViable: true,
+    },
+    factors: [],
+  },
+]
+
+export const MOCK_STATISTICS: StatisticsResponse = {
+  totalAnalyses: 1284,
+  totalRisksFound: 318,
+  avgScore: 0.41,
+  byRiskLevel: { LOW: 612, MEDIUM: 354, HIGH: 231, CRITICAL: 87 },
+  analysesLast30Days: Array.from({ length: 30 }, (_, i) => ({
+    date: iso(daysAgo(29 - i)).slice(0, 10),
+    count: Math.floor(20 + Math.random() * 60),
+  })),
+}
