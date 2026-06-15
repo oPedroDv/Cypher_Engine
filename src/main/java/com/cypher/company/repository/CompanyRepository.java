@@ -16,6 +16,7 @@ import java.util.UUID;
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
 
     Optional<Company> findByCnpjAndTenantId(String cnpj, UUID tenantId);
+
     boolean existsByCnpjAndTenantId(String cnpj, UUID tenantId);
 
     @Query("SELECT c.cnpjStatus FROM Company c WHERE c.cnpj = :cnpj AND c.tenantId = :tenantId")
@@ -23,18 +24,19 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
             @Param("cnpj") String cnpj,
             @Param("tenantId") UUID tenantId
     );
+
     @Query("""
             SELECT c FROM Company c
             WHERE c.statusCheckedAt IS NULL OR c.statusCheckedAt < :threshold
             ORDER BY c.statusCheckedAt ASC NULLS FIRST
             """)
-    List<Company> findStale(
-            @Param("threshold") Instant threshold
-    );
+    List<Company> findStale(@Param("threshold") Instant threshold);
+
     List<Company> findByTenantId(UUID tenantId);
+
     List<Company> findByCnpjStatusAndTenantId(CnpjStatus status, UUID tenantId);
 
     @Query("SELECT COUNT(c) FROM Company c WHERE c.tenantId = :tenantId AND c.cnpjStatus = 'ACTIVE'")
     long countActiveByTenantId(@Param("tenantId") UUID tenantId);
-    List<Company> findByCnpj(String cnpj);
+
 }

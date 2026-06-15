@@ -24,7 +24,7 @@ public class OutcomeService {
     @Transactional
     public void register(UUID analysisId, OutcomeRequest request, UUID tenantId) {
 
-        RiskAnalysis analysis = riskAnalysisRepository.findById(analysisId)
+        RiskAnalysis analysis = riskAnalysisRepository.findByIdAndTenantId(analysisId, tenantId)
                 .orElseThrow(() -> new AnalysisNotFoundException(analysisId));
 
         // Idempotência simples — evita duplicar outcome para a mesma análise

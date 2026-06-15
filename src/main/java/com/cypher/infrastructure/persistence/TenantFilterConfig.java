@@ -1,5 +1,6 @@
 package com.cypher.infrastructure.persistence;
 
+import com.cypher.infrastructure.security.ApiKeyAuthentication;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -24,10 +26,9 @@ public class TenantFilterConfig {
         return new TenantFilter();
     }
 
-    private static final class TenantFilter extends OncePerRequestFilter {
+    public static final class TenantFilter extends OncePerRequestFilter {
 
-        private static final String TENANT_CLAIM = "tenant_id";
-
+        private static final String TENANT_CLAIM   = "tenant_id";
         @Override
         protected void doFilterInternal(
                 HttpServletRequest request,
@@ -40,50 +41,44 @@ public class TenantFilterConfig {
                             TenantContext.set(tenantId);
                             log.debug("TenantContext populado: tenantId={}", tenantId);
                         },
-                        () -> log.debug("Request sem tenant_id (Endpoint publico ou não autenticado)")
+                        () -> log.debug("Request sem tenant_id (endpoint público ou não autenticado)")
                 );
-
                 filterChain.doFilter(request, response);
             } finally {
                 TenantContext.clear();
             }
         }
 
-        private java.util.Optional<UUID> extractTenantId(HttpServletRequest request) {
-            // 1. Tentar pelo Header (X-Tenant-Id) - Prioridade para desenvolvimento/public endpoints
-            String headerTenant = request.getHeader("X-Tenant-Id");
-            if (headerTenant != null && !headerTenant.isBlank()) {
-                try {
-                    return java.util.Optional.of(UUID.fromString(headerTenant));
-                } catch (IllegalArgumentException e) {
-                    log.error("X-Tenant-Id no header não é UUID válido '{}'", headerTenant);
+        private Optional<UUID> extractTenantId(HttpServletRequest request) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+            if (auth instanceof ApiKeyAuthentication apiKeyAuth && apiKeyAuth.isAuthenticated()) {
+                UUID tenantId = apiKeyAuth.getTenantId();
+                if (tenantId != null) {
+                    return Optional.of(tenantId);
                 }
             }
 
-            // 2. Tentar pelo JWT (Fallback para endpoints autenticados)
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
-                return java.util.Optional.empty();
+            if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Jwt jwt) {
+                String claim = jwt.getClaimAsString(TENANT_CLAIM);
+                if (claim != null && !claim.isBlank()) {
+                    try {
+                        return Optional.of(UUID.fromString(claim));
+                    } catch (IllegalArgumentException e) {
+                        log.error("tenant_id no JWT não é UUID válido: '{}'", claim);
+                    }
+                } else {
+                    log.warn("JWT autenticado sem claim '{}' — token mal formado", TENANT_CLAIM);
+                }
+                return Optional.empty();
             }
 
-            String tenantClaim = jwt.getClaimAsString(TENANT_CLAIM);
-            if (tenantClaim == null || tenantClaim.isBlank()) {
-                log.warn("JWT autenticado sem claim '{}' - possivelmente token mal formado", TENANT_CLAIM);
-                return java.util.Optional.empty();
-            }
-
-            try {
-                return java.util.Optional.of(UUID.fromString(tenantClaim));
-            } catch (IllegalArgumentException e) {
-                log.error("tenant_id no JWT não é UUID válido '{}'", tenantClaim);
-                return java.util.Optional.empty();
-            }
+            return Optional.empty();
         }
 
         @Override
         protected boolean shouldNotFilter(HttpServletRequest request) {
-            String path = request.getRequestURI();
-            return path.startsWith("/actuator");
+            return request.getRequestURI().startsWith("/actuator");
         }
     }
 }

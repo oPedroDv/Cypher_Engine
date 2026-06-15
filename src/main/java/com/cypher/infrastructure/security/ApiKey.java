@@ -8,7 +8,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "api_keys")
+@Table(
+        name = "api_keys",
+        indexes = {
+                @Index(name = "idx_api_keys_tenant", columnList = "tenant_id"),
+                @Index(name = "idx_api_keys_hash", columnList = "key_hash")
+        }
+)
 @Getter
 @NoArgsConstructor
 public class ApiKey {
@@ -23,7 +29,7 @@ public class ApiKey {
     @Column(name = "key_hash", nullable = false, unique = true, length = 64)
     private String keyHash;
 
-    @Column(name = "name")
+    @Column(name = "name", length = 100)
     private String name;
 
     @Column(name = "active", nullable = false)

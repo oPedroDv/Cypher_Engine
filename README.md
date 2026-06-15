@@ -5,7 +5,9 @@
 **Risk Intelligence Platform for Invoice Receivables Anticipation (NF-e)**
 
 ![Java](https://img.shields.io/badge/Java-21-007396?logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3-6DB33F?logo=springboot&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -59,11 +61,14 @@ Every analysis generates a complete audit trail including executed rules, fallba
 
 **Modular Monolith** built with modern Java practices, prioritizing simplicity, maintainability, and operational excellence.
 
-- **Language:** Java 21
-- **Framework:** Spring Boot 3
-- **Database:** PostgreSQL
+- **Backend:** Java 21 + Spring Boot 3.3.5
+- **Frontend:** React 19 + TypeScript + Vite 7
+- **Database:** PostgreSQL with Flyway migrations
+- **Cache / Idempotency:** Redis
+- **Security:** Spring Security, JWT resource server, API key authentication
+- **Observability:** Spring Boot Actuator, Micrometer tracing, OpenAPI / Swagger UI
+- **Resilience:** Resilience4j circuit breakers for external integrations
 - **Concurrency:** Virtual Threads (Project Loom)
-- **Queue Strategy:** PostgreSQL `SKIP LOCKED`
 
 **Design Philosophy:**  
 Explainability first • Simplicity • Modularity without premature complexity
@@ -82,45 +87,92 @@ flowchart TD
     F --> G[Audit Trail]
     G --> H[Response]
 ```
-Tech Stack
-```mermaid
-Layer           Technology   
 
-Backend     --- Java 21 + Spring Boot 3
-Security    --- Spring Security
-Database    --- PostgreSQL
-Build Tool  --- Maven
-API Docs    --- OpenAPI / Swagger
-CI/CD       --- GitHub Actions
-Concurrency --- Virtual Threads + SKIP LOCKED
-```
+## Tech Stack
 
-Project Status
-Actively under development
-✅ Completed
+### Backend
+- Java 21
+- Spring Boot 3.3.5
+- Spring Web MVC
+- Spring Data JPA / Hibernate
+- Spring Validation
+- Spring Security
+- OAuth2 Resource Server / JWT
+- API key authentication
+- PostgreSQL
+- Flyway
+- Redis
+- Resilience4j
+- Spring Boot Actuator
+- Micrometer Tracing with OpenTelemetry bridge
+- Springdoc OpenAPI / Swagger UI
+- Maven
+- Lombok
+- MapStruct
 
-Full scoring pipeline and rule engine
-Fallback and resilience mechanisms
-Multi-tenant foundation
-Complete audit infrastructure
-Concurrency strategies
-Operational validations
+### Frontend
+- React 19
+- TypeScript
+- Vite 7
+- Tailwind CSS
+- React Router
+- TanStack React Query
+- Axios
+- Recharts
+- Lucide React
+- date-fns
+- ESLint
 
-🚧 Roadmap
+### Testing
+- JUnit 5
+- Mockito
+- Spring Boot Test
+- Spring Security Test
+- Testcontainers
+- ArchUnit
 
-Web Dashboard (Frontend)
-Advanced financial modeling
-ML-assisted risk signals
-Tenant-specific policy customization
+### Infrastructure / Runtime
+- PostgreSQL 13+
+- Redis
+- Virtual Threads enabled on the backend
+- Local XML storage support
+- External integration adapters for SEFAZ and Receita Federal
 
+## Project Status
 
-Design Principles
+Actively under development.
 
-Explainability over black-box decisions
-Operational simplicity over unnecessary complexity
-Modularity without premature distribution
-Resilience through intelligent fallbacks
-Domain-Driven Design
+### Completed
+- Rule-based scoring engine
+- Explainable risk factors
+- Financial metrics calculation
+- NF-e XML parsing
+- SEFAZ status abstraction with fallback behavior
+- Receita Federal company status integration layer
+- Multi-tenant tenant context propagation
+- API key and JWT authentication foundation
+- Audit log infrastructure
+- Idempotency layer backed by Redis
+- Analysis history, statistics, and detail APIs
+- React dashboard, history, analysis detail, and new analysis screens
+
+### In Progress / Hardening
+- Flyway migration reliability
+- Frontend/backend contract alignment
+- Production-safe frontend error handling
+- Stronger idempotency guarantees
+- End-to-end and migration testing
+- Tenant-specific policy customization
+- Advanced financial modeling
+- ML-assisted risk signals
+
+## Design Principles
+
+- Explainability over black-box decisions
+- Operational simplicity over unnecessary complexity
+- Modularity without premature distribution
+- Resilience through intelligent fallbacks
+- Domain-Driven Design
 
 
 

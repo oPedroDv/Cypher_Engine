@@ -18,6 +18,14 @@ public final class TenantContext {
         return CURRENT_TENANT.get();
     }
 
+    public static UUID getRequired() {
+        UUID tenantId = CURRENT_TENANT.get();
+        if (tenantId == null) {
+            throw new IllegalStateException("TenantContext não foi populado para a requisição atual");
+        }
+        return tenantId;
+    }
+
     public static Optional<UUID> getOptional() {
         return Optional.ofNullable(CURRENT_TENANT.get());
     }

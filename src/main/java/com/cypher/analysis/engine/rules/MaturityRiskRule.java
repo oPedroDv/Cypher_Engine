@@ -16,7 +16,7 @@ public class MaturityRiskRule implements RiskRule {
         LocalDate dueDate = context.nfeData().getDueDate();
 
         if (dueDate == null) {
-            return RuleResult.of(getName(), "liquidity_risk", 0.40, WEIGHT, "INCREASE",
+            return RuleResult.of(getName(), "liquidity_risk", 0.60, WEIGHT, "INCREASE",
                     "Data de vencimento não identificada na NF-e.", "NFE_DATA");
         }
 
@@ -28,19 +28,19 @@ public class MaturityRiskRule implements RiskRule {
             score       = 1.0;
             explanation = "NF-e vencida há %d dia(s) — antecipação inviável.".formatted(Math.abs(daysUntilDue));
         } else if (daysUntilDue <= 3) {
-            score       = 0.85;
+            score       = 0.95;
             explanation = "Vencimento em %d dia(s) — margem de cobrança insuficiente.".formatted(daysUntilDue);
         } else if (daysUntilDue <= 7) {
-            score       = 0.60;
+            score       = 0.75;
             explanation = "Vencimento em %d dias — prazo curto para cobrança.".formatted(daysUntilDue);
         } else if (daysUntilDue <= 15) {
-            score       = 0.30;
+            score       = 0.45;
             explanation = "Vencimento em %d dias — prazo aceitável com atenção.".formatted(daysUntilDue);
         } else if (daysUntilDue <= 90) {
             score       = 0.0;
             explanation = "Vencimento em %d dias — prazo ideal para antecipação.".formatted(daysUntilDue);
         } else {
-            score       = 0.15;
+            score       = 0.30;
             explanation = "Vencimento em %d dias — exposição longa ao risco de crédito.".formatted(daysUntilDue);
         }
 

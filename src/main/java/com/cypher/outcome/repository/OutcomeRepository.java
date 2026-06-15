@@ -14,7 +14,7 @@ import java.util.UUID;
 @Repository
 public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
 
-    List<Outcome> findByAnalysisId(UUID analysisId);
+    List<Outcome> findByTenantIdAndAnalysisId(UUID tenantId, UUID analysisId);
 
     boolean existsByAnalysisIdAndTenantId(UUID analysisId, UUID tenantId);
 
@@ -35,6 +35,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             INNER JOIN Invoice i ON i.id = ra.invoice.id
             WHERE i.issuerCnpj = :cnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             ORDER BY o.eventDate DESC
             """)
     List<Outcome> findByIssuerCnpj(
@@ -48,6 +49,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             INNER JOIN Invoice i ON i.id = ra.invoice.id
             WHERE i.recipientCnpj = :cnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             ORDER BY o.eventDate DESC
             """)
     List<Outcome> findByPayerCnpj(
@@ -61,6 +63,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             INNER JOIN Invoice i ON i.id = ra.invoice.id
             WHERE i.issuerCnpj = :cnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             AND o.outcomeType IN :outcomeTypes
             """)
     int countByIssuerCnpjAndOutcomeTypes(
@@ -75,6 +78,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             INNER JOIN Invoice i ON i.id = ra.invoice.id
             WHERE i.recipientCnpj = :cnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             AND o.outcomeType IN :outcomeTypes
             """)
     int countByPayerCnpjAndOutcomeTypes(
@@ -90,6 +94,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             WHERE i.issuerCnpj = :issuerCnpj
             AND i.recipientCnpj = :recipientCnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             AND o.outcomeType IN :outcomeTypes
             """)
     int countByPairAndOutcomeTypes(
@@ -105,6 +110,7 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             INNER JOIN Invoice i ON i.id = ra.invoice.id
             WHERE i.recipientCnpj = :cnpj
             AND o.tenantId = :tenantId
+            AND ra.tenantId = :tenantId
             AND o.daysLate > 0
             """)
     int countLateByPayerCnpj(

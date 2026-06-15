@@ -7,6 +7,7 @@ import com.cypher.analysis.domain.Invoice;
 import com.cypher.analysis.domain.RiskAnalysis;
 import com.cypher.analysis.engine.rules.RuleResult;
 import com.cypher.analysis.service.AnalysisService;
+import com.cypher.infrastructure.persistence.TenantContext;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.web.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AnalysisControllerTest {
 
     private static final String XML = "<nfe><chNFe>12345678901234567890123456789012345678901234</chNFe></nfe>";
+    private static final UUID TENANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Mock
     private AnalysisService service;
@@ -52,6 +54,7 @@ class AnalysisControllerTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.set(TENANT_ID);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new AnalysisController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -113,33 +116,34 @@ class AnalysisControllerTest {
     @Test
     void findByIdReturnsExistingAnalysis() throws Exception {
         UUID analysisId = UUID.randomUUID();
-        when(service.findById(analysisId)).thenReturn(Optional.of(response(analysisId, UUID.randomUUID(), true)));
+        when(service.findById(analysisId, TENANT_ID)).thenReturn(Optional.of(response(analysisId, UUID.randomUUID(), true)));
 
         mockMvc.perform(get("/api/v1/analyses/{id}", analysisId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisId").value(analysisId.toString()))
                 .andExpect(jsonPath("$.idempotent").value(true));
 
-        verify(service).findById(analysisId);
+        verify(service).findById(analysisId, TENANT_ID);
     }
 
     @Test
     void findByIdReturnsNotFoundWhenAnalysisDoesNotExist() throws Exception {
         UUID analysisId = UUID.randomUUID();
-        when(service.findById(analysisId)).thenReturn(Optional.empty());
+        when(service.findById(analysisId, TENANT_ID)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/analyses/{id}", analysisId))
                 .andExpect(status().isNotFound());
 
-        verify(service).findById(analysisId);
+        verify(service).findById(analysisId, TENANT_ID);
         verify(service, never()).analyze(any(), any());
     }
 
     private static AnalysisResponse response(UUID analysisId, UUID invoiceId, boolean idempotent) {
-        Invoice invoice = Invoice.of(XML, "12345678901234567890123456789012345678901234");
+        Invoice invoice = Invoice.of(XML, TENANT_ID, "12345678901234567890123456789012345678901234");
         ReflectionTestUtils.setField(invoice, "id", invoiceId);
         RiskAnalysis analysis = RiskAnalysis.of(
                 invoice,
+                TENANT_ID,
                 0.25,
                 "model-v1",
                 List.of(com.cypher.analysis.domain.RiskFactor.from(

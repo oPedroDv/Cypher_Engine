@@ -26,7 +26,8 @@ import static org.mockito.Mockito.*;
 class IdempotencyServiceTest {
 
     private static final String KEY = "req-123";
-    private static final String REDIS_KEY = "cypher:idempotency:" + KEY;
+    private static final java.util.UUID TENANT_ID = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String REDIS_KEY = "cypher:idempotency:" + TENANT_ID + ":" + KEY;
     private static final String ANALYSIS_ID = "analysis-456";
 
     @Mock
@@ -54,7 +55,7 @@ class IdempotencyServiceTest {
             when(valueOperations.setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), any(Duration.class)))
                     .thenReturn(true);
 
-            String result = service.checkOrReverse(KEY);
+            String result = service.checkOrReverse(TENANT_ID, KEY);
 
             assertThat(result).isNull();
             verify(valueOperations).setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), eq(Duration.ofMinutes(2)));
@@ -65,7 +66,7 @@ class IdempotencyServiceTest {
         void shouldReturnExistingId() {
             when(valueOperations.get(REDIS_KEY)).thenReturn(ANALYSIS_ID);
 
-            String result = service.checkOrReverse(KEY);
+            String result = service.checkOrReverse(TENANT_ID, KEY);
 
             assertThat(result).isEqualTo(ANALYSIS_ID);
             verify(valueOperations, never()).setIfAbsent(any(), any(), any());
@@ -76,7 +77,7 @@ class IdempotencyServiceTest {
         void shouldThrowConflictWhenProcessing() {
             when(valueOperations.get(REDIS_KEY)).thenReturn("PROCESSING");
 
-            assertThatThrownBy(() -> service.checkOrReverse(KEY))
+            assertThatThrownBy(() -> service.checkOrReverse(TENANT_ID, KEY))
                     .isInstanceOf(IdempotencyConflictException.class);
         }
 
@@ -86,7 +87,7 @@ class IdempotencyServiceTest {
             when(valueOperations.get(REDIS_KEY)).thenReturn(null);
             when(valueOperations.setIfAbsent(any(), any(), any())).thenReturn(false);
 
-            assertThatThrownBy(() -> service.checkOrReverse(KEY))
+            assertThatThrownBy(() -> service.checkOrReverse(TENANT_ID, KEY))
                     .isInstanceOf(IdempotencyConflictException.class);
         }
 
@@ -95,7 +96,7 @@ class IdempotencyServiceTest {
         @ValueSource(strings = {" ", "\t"})
         @DisplayName("Should return null immediately for invalid keys")
         void shouldIgnoreInvalidKeys(String invalidKey) {
-            assertThat(service.checkOrReverse(invalidKey)).isNull();
+            assertThat(service.checkOrReverse(TENANT_ID, invalidKey)).isNull();
             verifyNoInteractions(redis);
         }
     }
@@ -107,7 +108,7 @@ class IdempotencyServiceTest {
         @Test
         @DisplayName("Should store analysisId with 24h TTL")
         void shouldStoreResult() {
-            service.confirm(KEY, ANALYSIS_ID);
+            service.confirm(TENANT_ID, KEY, ANALYSIS_ID);
 
             verify(valueOperations).set(eq(REDIS_KEY), eq(ANALYSIS_ID), eq(Duration.ofHours(24)));
         }
@@ -116,7 +117,7 @@ class IdempotencyServiceTest {
         @NullAndEmptySource
         @DisplayName("Should do nothing for invalid keys")
         void shouldIgnoreInvalidKeys(String invalidKey) {
-            service.confirm(invalidKey, ANALYSIS_ID);
+            service.confirm(TENANT_ID, invalidKey, ANALYSIS_ID);
             verifyNoInteractions(valueOperations);
         }
     }
@@ -128,7 +129,7 @@ class IdempotencyServiceTest {
         @Test
         @DisplayName("Should delete key from redis")
         void shouldDeleteKey() {
-            service.release(KEY);
+            service.release(TENANT_ID, KEY);
 
             verify(redis).delete(REDIS_KEY);
         }
@@ -137,7 +138,7 @@ class IdempotencyServiceTest {
         @NullAndEmptySource
         @DisplayName("Should do nothing for invalid keys")
         void shouldIgnoreInvalidKeys(String invalidKey) {
-            service.release(invalidKey);
+            service.release(TENANT_ID, invalidKey);
             verify(redis, never()).delete(anyString());
         }
     }

@@ -7,9 +7,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
-    Optional<Invoice> findByNfeKey(String nfeKey);
+    Optional<Invoice> findByTenantIdAndNfeKey(UUID tenantId, String nfeKey);
 
-    int countByIssuerCnpj(String issuerCnpj);
-    int countByRecipientCnpj(String recipientCnpj);
-    int countByIssuerCnpjAndRecipientCnpj(String issuerCnpj, String recipientCnpj);
+    int countByTenantIdAndIssuerCnpj(UUID tenantId, String issuerCnpj);
+    int countByTenantIdAndRecipientCnpj(UUID tenantId, String recipientCnpj);
+    int countByTenantIdAndIssuerCnpjAndRecipientCnpj(UUID tenantId, String issuerCnpj, String recipientCnpj);
 }

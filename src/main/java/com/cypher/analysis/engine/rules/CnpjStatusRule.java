@@ -44,11 +44,11 @@ public class CnpjStatusRule implements RiskRule {
     private double scoreForStatus(CnpjStatus status) {
         return switch (status) {
             case ACTIVE    -> 0.00;
-            case SUSPENDED -> 0.35;
-            case UNFIT     -> 0.70;
+            case SUSPENDED -> 0.60;
+            case UNFIT     -> 0.85;
             case CLOSED    -> 1.00;
             case NULLIFIED -> 1.00;
-            case UNKNOWN   -> 0.50;
+            case UNKNOWN   -> 0.60;
         };
     }
 

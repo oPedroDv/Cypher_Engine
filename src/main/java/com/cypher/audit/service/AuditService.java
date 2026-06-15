@@ -3,8 +3,8 @@ package com.cypher.audit.service;
 import com.cypher.audit.domain.AuditAction;
 import com.cypher.audit.domain.AuditLog;
 import com.cypher.audit.repository.AuditLogRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -12,18 +12,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AuditService {
-
-    private static final Logger log = LoggerFactory.getLogger(AuditService.class);
 
     private final AuditLogRepository repository;
 
-    public AuditService(AuditLogRepository repository) {
-        this.repository = repository;
-    }
-    
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(AuditLog auditLog) {
@@ -37,13 +34,15 @@ public class AuditService {
             String entityType,
             String entityId,
             String description,
-            String correlationId
+            String correlationId,
+            UUID tenantId
     ) {
         persist(
                 AuditLog.builder(action)
                         .entity(entityType, entityId)
                         .description(description)
                         .correlationId(correlationId)
+                        .tenantId(tenantId != null ? tenantId.toString() : null)
                         .success(true)
                         .build()
         );
@@ -57,7 +56,8 @@ public class AuditService {
             String entityId,
             String description,
             String errorMessage,
-            String correlationId
+            String correlationId,
+            UUID tenantId
     ) {
         persist(
                 AuditLog.builder(action)
@@ -65,6 +65,7 @@ public class AuditService {
                         .description(description)
                         .failure(errorMessage)
                         .correlationId(correlationId)
+                        .tenantId(tenantId != null ? tenantId.toString() : null)
                         .build()
         );
     }
@@ -79,6 +80,7 @@ public class AuditService {
             String actorId,
             String actorType,
             String correlationId,
+            UUID tenantId,
             Map<String, String> metadata
     ) {
         persist(
@@ -86,12 +88,12 @@ public class AuditService {
                         .entity(entityType, entityId)
                         .actor(actorId, actorType)
                         .correlationId(correlationId)
+                        .tenantId(tenantId != null ? tenantId.toString() : null)
                         .success(success)
                         .metadata(metadata)
                         .build()
         );
     }
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordSystemEvent(AuditAction action, String description) {
         persist(
@@ -106,10 +108,11 @@ public class AuditService {
     private void persist(AuditLog auditLog) {
         try {
             repository.save(auditLog);
-            log.debug("[AUDIT] {} | entity={}/{} | actor={} | success={}",
+            log.debug("[AUDIT] {} | entity={}/{} | tenant={} | actor={} | success={}",
                     auditLog.getAction(),
                     auditLog.getEntityType(),
                     auditLog.getEntityId(),
+                    auditLog.getTenantId(),
                     auditLog.getActorId(),
                     auditLog.isSuccess());
         } catch (Exception e) {

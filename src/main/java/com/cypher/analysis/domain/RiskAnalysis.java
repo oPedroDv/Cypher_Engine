@@ -6,6 +6,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -13,8 +14,8 @@ import java.util.UUID;
         name = "risk_analysis",
         indexes = {
                 @Index(name = "idx_risk_analysis_invoice_id",   columnList = "invoice_id"),
-                @Index(name = "idx_risk_analysis_created_at",   columnList = "created_at DESC"),
-                @Index(name = "idx_risk_analysis_risk_level",   columnList = "risk_level")
+                @Index(name = "idx_risk_analysis_tenant_created_at", columnList = "tenant_id, created_at DESC"),
+                @Index(name = "idx_risk_analysis_tenant_risk_level", columnList = "tenant_id, risk_level")
         }
 )
 public class RiskAnalysis {
@@ -26,6 +27,9 @@ public class RiskAnalysis {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
+
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
 
     @Column(nullable = false)
     private double score;
@@ -60,6 +64,7 @@ public class RiskAnalysis {
 
     public static RiskAnalysis of(
             Invoice invoice,
+            UUID tenantId,
             double score,
             String modelVersion,
             List<RiskFactor> factors,
@@ -67,18 +72,23 @@ public class RiskAnalysis {
             boolean dataPartial
     ) {
         RiskAnalysis analysis = new RiskAnalysis();
-        analysis.invoice          = invoice;
-        analysis.score            = score;
-        analysis.riskLevel        = RiskLevel.from(score);
-        analysis.modelVersion     = modelVersion;
-        analysis.factors          = factors;
+        analysis.invoice = Objects.requireNonNull(invoice, "invoice é obrigatória");
+        analysis.tenantId = Objects.requireNonNull(tenantId, "tenantId é obrigatório");
+        if (!analysis.tenantId.equals(invoice.getTenantId())) {
+            throw new IllegalArgumentException("tenantId da análise deve ser igual ao tenantId da invoice");
+        }
+        analysis.score = score;
+        analysis.riskLevel = RiskLevel.from(score);
+        analysis.modelVersion = modelVersion;
+        analysis.factors = factors;
         analysis.financialMetrics = financialMetrics;
-        analysis.dataPartial      = dataPartial;
+        analysis.dataPartial = dataPartial;
         return analysis;
     }
 
     public UUID getId() { return id; }
     public Invoice getInvoice() { return invoice; }
+    public UUID getTenantId() { return tenantId; }
     public double getScore() { return score; }
     public RiskLevel getRiskLevel() { return riskLevel; }
     public String getModelVersion() { return modelVersion; }

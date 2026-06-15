@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
-const API_KEY  = import.meta.env.VITE_API_KEY  ?? ''
+const API_KEY = import.meta.env.VITE_API_KEY ?? ''
 const TENANT_ID = import.meta.env.VITE_TENANT_ID ?? ''
 
 export const apiClient = axios.create({
@@ -18,7 +18,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   const lsKey = localStorage.getItem('cypher_api_key')
   const lsTenant = localStorage.getItem('cypher_tenant_id')
-  if (lsKey) config.headers['X-Api-Key'] = lsKey
+  if (!API_KEY && lsKey) config.headers['X-Api-Key'] = lsKey
   if (lsTenant) config.headers['X-Tenant-Id'] = lsTenant
   return config
 })

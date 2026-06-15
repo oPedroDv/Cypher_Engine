@@ -2,6 +2,7 @@ package com.cypher.analysis.api;
 
 import com.cypher.analysis.api.dto.AnalysisResponse;
 import com.cypher.analysis.service.AnalysisService;
+import com.cypher.infrastructure.persistence.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -12,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/analyses")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") 
 public class AnalysisListController {
 
     private final AnalysisService service;
@@ -24,6 +24,6 @@ public class AnalysisListController {
             @RequestParam(required = false)    String riskLevel
     ) {
         log.debug("Listando análises page={} size={} riskLevel={}", page, size, riskLevel);
-        return ResponseEntity.ok(service.listAnalyses(page, size, riskLevel));
+        return ResponseEntity.ok(service.listAnalyses(TenantContext.getRequired(), page, size, riskLevel));
     }
 }

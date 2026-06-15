@@ -6,8 +6,7 @@ import com.cypher.company.service.CompanyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
+import com.cypher.infrastructure.persistence.TenantContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -22,10 +21,9 @@ public class CompanyController {
 
     @GetMapping("/{cnpj}")
     public ResponseEntity<CompanyProfileResponse> getProfile(
-            @PathVariable String cnpj,
-            @AuthenticationPrincipal Jwt jwt
+            @PathVariable String cnpj
     ) {
-        UUID tenantId = extractTenantId(jwt);
+        UUID tenantId = TenantContext.getRequired();
         log.debug("Buscando perfil cnpj={} tenant={}", cnpj, tenantId);
 
         Company company = companyService.resolveCompany(cnpj, tenantId);
@@ -34,32 +32,22 @@ public class CompanyController {
 
     @GetMapping("/{cnpj}/status")
     public ResponseEntity<StatusResponse> getStatus(
-            @PathVariable String cnpj,
-            @AuthenticationPrincipal Jwt jwt
+            @PathVariable String cnpj
     ) {
-        UUID tenantId = extractTenantId(jwt);
+        UUID tenantId = TenantContext.getRequired();
         var status = companyService.checkStatus(cnpj, tenantId);
         return ResponseEntity.ok(new StatusResponse(cnpj, status.name(), status.isFit(), status.isCritical()));
     }
 
     @PostMapping("/{cnpj}/refresh")
     public ResponseEntity<CompanyProfileResponse> refreshStatus(
-            @PathVariable String cnpj,
-            @AuthenticationPrincipal Jwt jwt
+            @PathVariable String cnpj
     ) {
-        UUID tenantId = extractTenantId(jwt);
+        UUID tenantId = TenantContext.getRequired();
         log.info("Refresh forçado cnpj={} tenant={}", cnpj, tenantId);
 
         Company company = companyService.forceStatusRefresh(cnpj, tenantId);
         return ResponseEntity.ok(CompanyProfileResponse.from(company));
-    }
-
-    private UUID extractTenantId(Jwt jwt) {
-        String tenantClaim = jwt.getClaimAsString("tenant_id");
-        if (tenantClaim == null || tenantClaim.isBlank()) {
-            throw new IllegalArgumentException("JWT não contém claim 'tenant_id'");
-        }
-        return UUID.fromString(tenantClaim);
     }
 
     public record StatusResponse(

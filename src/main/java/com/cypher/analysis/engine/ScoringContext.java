@@ -38,9 +38,9 @@ public record ScoringContext(
             throw new IllegalArgumentException("nfeData é obrigatório no ScoringContext");
         }
 
-        sefazStatus      = sefazStatus      == null ? SefazStatus.UNAVAILABLE    : sefazStatus;
-        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.UNKNOWN    : issuerCnpjStatus;
-        payerCnpjStatus  = payerCnpjStatus  == null ? CnpjStatus.UNKNOWN    : payerCnpjStatus;
+        sefazStatus = sefazStatus == null ? SefazStatus.UNAVAILABLE : sefazStatus;
+        issuerCnpjStatus = issuerCnpjStatus == null ? CnpjStatus.UNKNOWN : issuerCnpjStatus;
+        payerCnpjStatus  = payerCnpjStatus == null ? CnpjStatus.UNKNOWN : payerCnpjStatus;
     }
 
     public double issuerDefaultRate() {

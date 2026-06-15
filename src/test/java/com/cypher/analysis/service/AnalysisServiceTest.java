@@ -40,7 +40,16 @@ import static org.mockito.Mockito.*;
 class AnalysisServiceTest {
 
     private static final String CHAVE_NFE = "12345678901234567890123456789012345678901234";
-    private static final String XML = "<nfe><chNFe>" + CHAVE_NFE + "</chNFe><vNF>10000.0</vNF></nfe>";
+    private static final String XML = """
+            <nfe>
+              <chNFe>%s</chNFe>
+              <emit><CNPJ>00000000000000</CNPJ><xNome>Emitente Teste</xNome></emit>
+              <dest><CNPJ>11111111111111</CNPJ><xNome>Destinatario Teste</xNome></dest>
+              <vNF>10000.0</vNF>
+              <dhEmi>2026-06-01T10:00:00-03:00</dhEmi>
+              <dVenc>2026-07-01</dVenc>
+            </nfe>
+            """.formatted(CHAVE_NFE);
     private static final UUID TENANT_ID = UUID.randomUUID();
     private static final String IDEM_KEY = "idem-1";
 
@@ -68,6 +77,9 @@ class AnalysisServiceTest {
     @Mock
     private OutcomeRepository outcomeRepository;
 
+    @Mock
+    private SefazClient sefazClient;
+
     @InjectMocks
     private AnalysisService service;
 
@@ -86,8 +98,11 @@ class AnalysisServiceTest {
             FinancialMetrics metrics = createMetrics();
             RuleResult engineFactor = RuleResult.of("sefaz", "DOCUMENT", 0.25, 0.4, "INCREASE", "ok", "SEFAZ");
 
-            when(idempotencyService.checkOrReverse(IDEM_KEY)).thenReturn(null);
-            when(invoiceRepository.findByNfeKey(CHAVE_NFE)).thenReturn(Optional.empty());
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
+                    SefazClient.ConsultationResult.available(InvoiceStatus.AUTHORIZED, "SEFAZ", "Autorizada")
+            );
             when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
             
             when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
@@ -113,11 +128,13 @@ class AnalysisServiceTest {
             assertThat(response.idempotent()).isFalse();
             
             verify(xmlStorageService).store(XML, invoiceId, CHAVE_NFE);
-            verify(idempotencyService).confirm(IDEM_KEY, analysisId.toString());
+            verify(idempotencyService).confirm(TENANT_ID, IDEM_KEY, analysisId.toString());
             
             ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
             verify(riskEngine).score(contextCaptor.capture());
             assertThat(contextCaptor.getValue().nfeData().getAccessKey()).isEqualTo(CHAVE_NFE);
+            assertThat(contextCaptor.getValue().sefazStatus()).isEqualTo(com.cypher.analysis.engine.SefazStatus.AUTHORIZED);
+            assertThat(contextCaptor.getValue().hasUnavailableSource()).isFalse();
 
             ArgumentCaptor<Invoice> invoiceCaptor = ArgumentCaptor.forClass(Invoice.class);
             verify(invoiceRepository).save(invoiceCaptor.capture());
@@ -130,8 +147,8 @@ class AnalysisServiceTest {
             UUID analysisId = UUID.randomUUID();
             RiskAnalysis existing = createPersistedAnalysis(analysisId);
             
-            when(idempotencyService.checkOrReverse(IDEM_KEY)).thenReturn(analysisId.toString());
-            when(riskRepository.findById(analysisId)).thenReturn(Optional.of(existing));
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(analysisId.toString());
+            when(riskRepository.findByIdAndTenantId(analysisId, TENANT_ID)).thenReturn(Optional.of(existing));
 
             AnalysisResponse response = service.analyze(createRequest(), TENANT_ID);
 
@@ -144,29 +161,62 @@ class AnalysisServiceTest {
         @DisplayName("Should release idempotency and throw error on duplicate invoice")
         void shouldHandleDuplicateInvoice() {
             UUID invoiceId = UUID.randomUUID();
-            Invoice existingInvoice = TestEntityHelper.withId(Invoice.of(XML, CHAVE_NFE), invoiceId);
+            Invoice existingInvoice = TestEntityHelper.withId(Invoice.of(XML, TENANT_ID, CHAVE_NFE), invoiceId);
             RiskAnalysis existingAnalysis = createPersistedAnalysis(UUID.randomUUID());
 
-            when(idempotencyService.checkOrReverse(IDEM_KEY)).thenReturn(null);
-            when(invoiceRepository.findByNfeKey(CHAVE_NFE)).thenReturn(Optional.of(existingInvoice));
-            when(riskRepository.findTopByInvoiceIdOrderByCreatedAtDesc(invoiceId)).thenReturn(Optional.of(existingAnalysis));
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.of(existingInvoice));
+            when(riskRepository.findTopByTenantIdAndInvoiceIdOrderByCreatedAtDesc(TENANT_ID, invoiceId)).thenReturn(Optional.of(existingAnalysis));
 
             assertThatThrownBy(() -> service.analyze(createRequest(), TENANT_ID))
                     .isInstanceOf(DuplicateInvoiceException.class);
 
-            verify(idempotencyService).release(IDEM_KEY);
+            verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
         }
 
         @Test
         @DisplayName("Should release idempotency when parsing fails")
         void shouldHandleInvalidNFe() {
             AnalysisRequest request = new AnalysisRequest("invalid-xml", IDEM_KEY, new BigDecimal("1000"), 2.0);
-            when(idempotencyService.checkOrReverse(IDEM_KEY)).thenReturn(null);
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
 
             assertThatThrownBy(() -> service.analyze(request, TENANT_ID))
                     .isInstanceOf(InvalidNFeException.class);
 
-            verify(idempotencyService).release(IDEM_KEY);
+            verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
+        }
+
+        @Test
+        @DisplayName("Should mark analysis as partial when SEFAZ integration is unavailable")
+        void shouldMarkPartialWhenSefazUnavailable() {
+            UUID invoiceId = UUID.randomUUID();
+            UUID analysisId = UUID.randomUUID();
+            AnalysisRequest request = createRequest();
+            RuleResult engineFactor = RuleResult.of("sefaz", "DOCUMENT", 0.4, 0.4, "INCREASE", "unavailable", "FALLBACK");
+
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
+                    SefazClient.ConsultationResult.unavailable("SEFAZ", "Fonte indisponível")
+            );
+            when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
+            when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
+            when(riskEngine.score(any(ScoringContext.class))).thenReturn(new RiskEngineService.EngineResult(
+                    0.4, List.of(engineFactor), "model-v1", true));
+            when(financialMetricsService.calculate(any(), any(), anyDouble(), anyDouble())).thenReturn(createMetrics());
+            when(riskRepository.save(any(RiskAnalysis.class))).thenAnswer(inv -> {
+                RiskAnalysis analysis = inv.getArgument(0);
+                TestEntityHelper.withId(analysis, analysisId);
+                TestEntityHelper.withCreatedAt(analysis, Instant.now());
+                return analysis;
+            });
+
+            service.analyze(request, TENANT_ID);
+
+            ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
+            verify(riskEngine).score(contextCaptor.capture());
+            assertThat(contextCaptor.getValue().sefazStatus()).isEqualTo(com.cypher.analysis.engine.SefazStatus.ERROR);
+            assertThat(contextCaptor.getValue().hasUnavailableSource()).isTrue();
         }
     }
 
@@ -178,12 +228,26 @@ class AnalysisServiceTest {
         void shouldMapToResponse() {
             UUID analysisId = UUID.randomUUID();
             RiskAnalysis existing = createPersistedAnalysis(analysisId);
-            when(riskRepository.findById(analysisId)).thenReturn(Optional.of(existing));
+            when(riskRepository.findByIdAndTenantId(analysisId, TENANT_ID)).thenReturn(Optional.of(existing));
 
-            Optional<AnalysisResponse> response = service.findById(analysisId);
+            Optional<AnalysisResponse> response = service.findById(analysisId, TENANT_ID);
 
             assertThat(response).isPresent();
             assertThat(response.get().analysisId()).isEqualTo(analysisId);
+        }
+
+        @Test
+        @DisplayName("Should not return analysis from another tenant")
+        void shouldNotReturnAnalysisFromAnotherTenant() {
+            UUID analysisId = UUID.randomUUID();
+            UUID otherTenant = UUID.randomUUID();
+            when(riskRepository.findByIdAndTenantId(analysisId, otherTenant)).thenReturn(Optional.empty());
+
+            Optional<AnalysisResponse> response = service.findById(analysisId, otherTenant);
+
+            assertThat(response).isEmpty();
+            verify(riskRepository).findByIdAndTenantId(analysisId, otherTenant);
+            verify(riskRepository, never()).findById(analysisId);
         }
     }
 
@@ -197,9 +261,9 @@ class AnalysisServiceTest {
     }
 
     private RiskAnalysis createPersistedAnalysis(UUID analysisId) {
-        Invoice invoice = TestEntityHelper.withId(Invoice.of(XML, CHAVE_NFE));
+        Invoice invoice = TestEntityHelper.withId(Invoice.of(XML, TENANT_ID, CHAVE_NFE));
         RiskAnalysis analysis = RiskAnalysis.of(
-                invoice, 0.25, "model-v1", 
+                invoice, TENANT_ID, 0.25, "model-v1",
                 List.of(RiskFactor.from(RuleResult.of("r1", "c1", 0.1, 0.1, "I", "m", "s"))),
                 createMetrics(), false
         );

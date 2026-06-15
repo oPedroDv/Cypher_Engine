@@ -16,36 +16,41 @@ import java.util.UUID;
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
-    Page<AuditLog> findByEntityTypeAndEntityIdOrderByOccurredAtDesc(
+    Page<AuditLog> findByTenantIdAndEntityTypeAndEntityIdOrderByOccurredAtDesc(
+            String tenantId,
             String entityType,
             String entityId,
             Pageable pageable
     );
 
-    Page<AuditLog> findByEntityTypeAndEntityIdAndActionOrderByOccurredAtDesc(
+    Page<AuditLog> findByTenantIdAndEntityTypeAndEntityIdAndActionOrderByOccurredAtDesc(
+            String tenantId,
             String entityType,
             String entityId,
             AuditAction action,
             Pageable pageable
     );
 
-    Page<AuditLog> findByActionAndOccurredAtBetweenOrderByOccurredAtDesc(
+    Page<AuditLog> findByTenantIdAndActionAndOccurredAtBetweenOrderByOccurredAtDesc(
+            String tenantId,
             AuditAction action,
             Instant from,
             Instant to,
             Pageable pageable
     );
 
-    List<AuditLog> findByCorrelationIdOrderByOccurredAtAsc(String correlationId);
+    List<AuditLog> findByTenantIdAndCorrelationIdOrderByOccurredAtAsc(String tenantId, String correlationId);
 
     @Query("""
         SELECT COUNT(a) FROM AuditLog a
         WHERE a.action = :action
           AND a.entityType = 'INVOICE'
           AND a.actorId = :cnpj
+          AND a.tenantId = :tenantId
           AND a.occurredAt >= :since
     """)
-    long countByActionAndActorIdSince(
+    long countByTenantIdAndActionAndActorIdSince(
+            @Param("tenantId") String tenantId,
             @Param("action") AuditAction action,
             @Param("cnpj") String cnpj,
             @Param("since") Instant since
@@ -58,13 +63,15 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             com.cypher.audit.domain.AuditAction.AUTH_PERMISSION_DENIED
         )
         AND a.actorId = :actorId
+        AND a.tenantId = :tenantId
         AND a.occurredAt >= :since
         ORDER BY a.occurredAt DESC
     """)
-    List<AuditLog> findRecentAuthFailures(
+    List<AuditLog> findRecentAuthFailuresByTenantId(
+            @Param("tenantId") String tenantId,
             @Param("actorId") String actorId,
             @Param("since") Instant since
     );
 
-    boolean existsByCorrelationIdAndAction(String correlationId, AuditAction action);
+    boolean existsByTenantIdAndCorrelationIdAndAction(String tenantId, String correlationId, AuditAction action);
 }

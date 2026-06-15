@@ -11,40 +11,60 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
+import java.util.Optional;
 
 public class NFeParser {
+
+    private static final int MAX_XML_BYTES = 1024 * 1024;
 
     private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter ISO_OFFSET_DATE_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-    private NFeParser() {
-    }
+    private NFeParser() {}
 
     public static NFeData parse(String input) {
         validateInput(input);
 
         String xml = decodeIfBase64(input);
 
+        if (xml.getBytes(StandardCharsets.UTF_8).length > MAX_XML_BYTES) {
+            throw new InvalidNFeException("XML da NF-e excede o tamanho máximo permitido (1MB)");
+        }
+
         try {
             Document document = buildDocument(xml);
 
             String accessKey = extractAccessKey(document);
 
-            String issuerCnpj = extractNested(document, "emit", "CNPJ", "00000000000000");
+            String issuerCnpj = extractNested(document, "emit", "CNPJ", null);
+            if (issuerCnpj == null) {
+                throw new InvalidNFeException("CNPJ do emitente ausente no XML");
+            }
+
             String issuerName = extractNested(document, "emit", "xNome", "EMITENTE DESCONHECIDO");
 
-            String recipientCnpj = extractNested(document, "dest", "CNPJ", "00000000000000");
-            if ("00000000000000".equals(recipientCnpj)) {
-                recipientCnpj = extractNested(document, "dest", "CPF", "00000000000");
+            String recipientCnpj = extractNested(document, "dest", "CNPJ", null);
+            if (recipientCnpj == null) {
+                recipientCnpj = extractNested(document, "dest", "CPF", null);
             }
+            if (recipientCnpj == null) {
+                throw new InvalidNFeException("CNPJ/CPF do destinatário ausente no XML");
+            }
+
             String recipientName = extractNested(document, "dest", "xNome", "DESTINATARIO DESCONHECIDO");
 
-            BigDecimal totalAmount = extractBigDecimal(document, "vNF", BigDecimal.ZERO);
+            BigDecimal totalAmount = extractBigDecimal(document, "vNF",    BigDecimal.ZERO);
             BigDecimal freightAmount = extractBigDecimal(document, "vFrete", BigDecimal.ZERO);
-            BigDecimal discountAmount = extractBigDecimal(document, "vDesc", BigDecimal.ZERO);
+            BigDecimal discountAmount = extractBigDecimal(document, "vDesc",  BigDecimal.ZERO);
 
-            LocalDate issueDate = parseDate(extractOptional(document, "dhEmi", extractOptional(document, "dEmi", LocalDate.now().toString())));
-            LocalDate dueDate = parseDate(extractOptional(document, "dVenc", issueDate.plusDays(30).toString()));
+             String rawIssueDate = extractOptional(document, "dhEmi",
+                    extractOptional(document, "dEmi", null));
+            LocalDate issueDate = parseDate(rawIssueDate)
+                    .orElseThrow(() -> new InvalidNFeException("Data de emissão ausente ou inválida no XML"));
+
+            String rawDueDate = extractOptional(document, "dVenc", null);
+            LocalDate dueDate = parseDate(rawDueDate)
+                    .orElse(issueDate.plusDays(30));
 
             return NFeData.builder()
                     .accessKey(normalizeKey(accessKey))
@@ -58,9 +78,11 @@ public class NFeParser {
                     .discountAmount(discountAmount)
                     .issueDate(issueDate)
                     .dueDate(dueDate)
-                    .status(InvoiceStatus.AUTHORIZED)
+                    .status(InvoiceStatus.PENDING)
                     .buildUnsafe();
 
+        } catch (InvalidNFeException e) {
+            throw e;
         } catch (Exception e) {
             throw new InvalidNFeException("Falha ao processar XML da NF-e: " + e.getMessage());
         }
@@ -90,21 +112,22 @@ public class NFeParser {
             org.w3c.dom.Element parent = (org.w3c.dom.Element) parents.item(0);
             NodeList children = parent.getElementsByTagName(childTag);
             if (children.getLength() > 0) {
-                return children.item(0).getTextContent().trim();
+                String value = children.item(0).getTextContent().trim();
+                return value.isEmpty() ? defaultValue : value;
             }
         }
         return defaultValue;
     }
 
-    private static LocalDate parseDate(String dateStr) {
-        if (dateStr == null || dateStr.isBlank()) return LocalDate.now();
+    private static Optional<LocalDate> parseDate(String dateStr) {
+        if (dateStr == null || dateStr.isBlank()) return Optional.empty();
         try {
             if (dateStr.contains("T")) {
-                return LocalDate.parse(dateStr, ISO_OFFSET_DATE_TIME);
+                return Optional.of(LocalDate.parse(dateStr, ISO_OFFSET_DATE_TIME));
             }
-            return LocalDate.parse(dateStr, ISO_DATE);
+            return Optional.of(LocalDate.parse(dateStr, ISO_DATE));
         } catch (Exception e) {
-            return LocalDate.now();
+            return Optional.empty();
         }
     }
 
@@ -137,29 +160,17 @@ public class NFeParser {
                 .parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private static String extractRequired(Document document, String tag) {
-        NodeList nodes = document.getElementsByTagName(tag);
-        if (nodes.getLength() == 0) {
-            throw new InvalidNFeException("Tag obrigatória ausente: " + tag);
-        }
-        return nodes.item(0).getTextContent().trim();
-    }
-
     private static String extractOptional(Document document, String tag, String defaultValue) {
         NodeList nodes = document.getElementsByTagName(tag);
-        if (nodes.getLength() == 0) {
-            return defaultValue;
-        }
-        return nodes.item(0).getTextContent().trim();
+        if (nodes.getLength() == 0) return defaultValue;
+        String value = nodes.item(0).getTextContent().trim();
+        return value.isEmpty() ? defaultValue : value;
     }
 
     private static BigDecimal extractBigDecimal(Document document, String tag, BigDecimal defaultValue) {
         try {
             String value = extractOptional(document, tag, null);
-            if (value == null) {
-                return defaultValue;
-            }
-            return new BigDecimal(value);
+            return value == null ? defaultValue : new BigDecimal(value);
         } catch (Exception e) {
             return defaultValue;
         }
@@ -168,7 +179,7 @@ public class NFeParser {
     private static String normalizeKey(String key) {
         String normalized = key.replaceAll("\\D", "");
         if (normalized.length() != 44) {
-            throw new InvalidNFeException("Chave NF-e inválida");
+            throw new InvalidNFeException("Chave NF-e inválida: esperado 44 dígitos, encontrado " + normalized.length());
         }
         return normalized;
     }

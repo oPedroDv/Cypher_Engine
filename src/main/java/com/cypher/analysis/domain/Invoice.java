@@ -3,14 +3,15 @@ package com.cypher.analysis.domain;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
 @Table(
         name = "invoice",
         indexes = {
-                @Index(name = "idx_invoice_chave_nfe", columnList = "chave_nfe"),
-                @Index(name = "idx_invoice_issuer_cnpj", columnList = "issuer_cnpj")
+                @Index(name = "idx_invoice_tenant_issuer", columnList = "tenant_id, issuer_cnpj"),
+                @Index(name = "idx_invoice_tenant_recipient", columnList = "tenant_id, recipient_cnpj")
         }
 )
 public class Invoice {
@@ -22,7 +23,10 @@ public class Invoice {
     @Column(name = "raw_xml", columnDefinition = "TEXT", nullable = false)
     private String rawXml;
 
-    @Column(name = "chave_nfe", length = 44, unique = true)
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
+
+    @Column(name = "chave_nfe", length = 44)
     private String nfeKey;
 
     @Column(name = "issuer_cnpj", length = 14)
@@ -45,13 +49,15 @@ public class Invoice {
 
     private Invoice(
             String rawXml,
+            UUID tenantId,
             String nfeKey,
             String issuerCnpj,
             String issuerName,
             String recipientCnpj,
             String recipientName
     ) {
-        this.rawXml = rawXml;
+        this.rawXml = Objects.requireNonNull(rawXml, "rawXml é obrigatório");
+        this.tenantId = Objects.requireNonNull(tenantId, "tenantId é obrigatório");
         this.nfeKey = nfeKey;
         this.issuerCnpj = issuerCnpj;
         this.issuerName = issuerName;
@@ -62,6 +68,7 @@ public class Invoice {
 
     public static Invoice of(
             String xml,
+            UUID tenantId,
             String nfeKey,
             String issuerCnpj,
             String issuerName,
@@ -70,6 +77,7 @@ public class Invoice {
     ) {
         return new Invoice(
                 xml,
+                tenantId,
                 nfeKey,
                 issuerCnpj,
                 issuerName,
@@ -78,13 +86,14 @@ public class Invoice {
         );
     }
 
-    public static Invoice of(String xml, String nfeKey) {
-        return new Invoice(xml, nfeKey, null, null, null, null);
+    public static Invoice of(String xml, UUID tenantId, String nfeKey) {
+        return new Invoice(xml, tenantId, nfeKey, null, null, null, null);
     }
 
-    public static Invoice from(String xml, NFeData nfeData) {
+    public static Invoice from(String xml, UUID tenantId, NFeData nfeData) {
         return new Invoice(
                 xml,
+                tenantId,
                 nfeData.getAccessKey(),
                 nfeData.getIssuerCnpj(),
                 nfeData.getIssuerLegalName(),
@@ -99,6 +108,10 @@ public class Invoice {
 
     public String getRawXml() {
         return rawXml;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public String getNfeKey() {

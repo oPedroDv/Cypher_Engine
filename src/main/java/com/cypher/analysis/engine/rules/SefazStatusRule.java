@@ -13,10 +13,6 @@ public class SefazStatusRule implements RiskRule {
     public RuleResult evaluate(ScoringContext context) {
         SefazStatus status = context.sefazStatus();
 
-        if (status == SefazStatus.UNAVAILABLE) {
-            return RuleResult.fallback(getName(), "nfe_validation", WEIGHT);
-        }
-
         double score;
         String explanation;
 
@@ -26,7 +22,7 @@ public class SefazStatusRule implements RiskRule {
                 explanation = "NF-e autorizada e em situação regular na SEFAZ.";
             }
             case PENDING -> {
-                score       = 0.60;
+                score       = 0.80;
                 explanation = "Status da NF-e não confirmado na SEFAZ — antecipação sobre documento pendente é inválida.";
             }
             case CANCELLED -> {
@@ -37,8 +33,16 @@ public class SefazStatusRule implements RiskRule {
                 score       = 1.0;
                 explanation = "NF-e denegada na SEFAZ — indica irregularidade fiscal grave.";
             }
+            case UNAVAILABLE -> {
+                score       = 0.75;
+                explanation = "SEFAZ indisponível — não foi possível confirmar existência e autorização da NF-e.";
+            }
+            case ERROR -> {
+                score       = 0.75;
+                explanation = "Erro na consulta SEFAZ — documento não confirmado por fonte oficial.";
+            }
             default -> {
-                score       = 0.50;
+                score       = 0.65;
                 explanation = "Status SEFAZ desconhecido: " + status + " — score conservador aplicado.";
             }
         }

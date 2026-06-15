@@ -15,7 +15,7 @@ public class ValueAnomalyRule implements RiskRule {
         BigDecimal avgValue = context.issuerAvgValue();
 
         if (avgValue == null || avgValue.compareTo(BigDecimal.ZERO) <= 0) {
-            return RuleResult.of(getName(), "fraud_detection", 0.20, WEIGHT, "INCREASE",
+            return RuleResult.of(getName(), "fraud_detection", 0.30, WEIGHT, "INCREASE",
                     "Sem histórico de valor médio para o cedente — incerteza leve aplicada.",
                     "INTERNAL_HISTORY");
         }
@@ -34,11 +34,14 @@ public class ValueAnomalyRule implements RiskRule {
             score       = 0.40;
             explanation = "Valor da NF-e %.2fx acima da média do cedente — requer atenção.".formatted(ratio);
         } else if (ratio <= 5.0) {
-            score       = 0.70;
+            score       = 0.75;
             explanation = "Valor da NF-e %.2fx acima da média do cedente — anomalia relevante.".formatted(ratio);
-        } else {
+        } else if (ratio <= 8.0) {
             score       = 0.90;
             explanation = "Valor da NF-e %.2fx acima da média do cedente — possível superfaturamento ou fraude.".formatted(ratio);
+        } else {
+            score       = 1.0;
+            explanation = "Valor da NF-e %.2fx acima da média do cedente — anomalia extrema, provável fraude ou erro material.".formatted(ratio);
         }
 
         String direction = score > 0.0 ? "INCREASE" : "DECREASE";

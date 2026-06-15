@@ -88,7 +88,7 @@ class RiskEngineServiceTest {
 
         RiskEngineService.EngineResult result = service.score(context);
 
-        assertThat(result.score()).isEqualTo(0.1);
+        assertThat(result.score()).isEqualTo(0.35);
         assertThat(result.dataPartial()).isTrue();
         assertThat(result.factors()).singleElement().satisfies(factor -> {
             assertThat(factor.ruleName()).isEqualTo("sefaz_status");
@@ -108,12 +108,39 @@ class RiskEngineServiceTest {
 
         RiskEngineService.EngineResult result = service.score(context);
 
-        assertThat(result.score()).isZero();
+        assertThat(result.score()).isEqualTo(0.35);
         assertThat(result.dataPartial()).isTrue();
     }
 
-    private static ScoringContext context(boolean hasUnavailableSource) {
-        return ScoringContext.builder()
+    @Test
+    void scoreEscalatesCancelledSefazToCriticalEvenWhenWeightedRulesAreLow() {
+        ScoringContext context = context(false, SefazStatus.CANCELLED, CnpjStatus.ACTIVE, CnpjStatus.ACTIVE);
+        when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));
+        when(lowRiskRule.evaluate(context)).thenReturn(
+                RuleResult.of("issuer_history", "behavioral", 0.1, 0.20, "DECREASE", "low", "INTERNAL_HISTORY")
+        );
+
+        RiskEngineService.EngineResult result = service.score(context);
+
+        assertThat(result.score()).isEqualTo(0.95);
+    }
+
+    @Test
+    void scoreEscalatesCriticalIssuerCnpjEvenWhenWeightedRulesAreLow() {
+        ScoringContext context = context(false, SefazStatus.AUTHORIZED, CnpjStatus.CLOSED, CnpjStatus.ACTIVE);
+        when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));
+        when(lowRiskRule.evaluate(context)).thenReturn(
+                RuleResult.of("sefaz_status", "nfe_validation", 0.0, 0.25, "DECREASE", "ok", "SEFAZ")
+        );
+
+        RiskEngineService.EngineResult result = service.score(context);
+
+        assertThat(result.score()).isEqualTo(0.90);
+    }
+
+    @Test
+    void scoreEscalatesSevereHistoricalDefaultRates() {
+        ScoringContext context = ScoringContext.builder()
                 .nfeData(NFeData.builder()
                         .accessKey("12345678901234567890123456789012345678901234")
                         .totalAmount(new BigDecimal("10000.00"))
@@ -123,6 +150,44 @@ class RiskEngineServiceTest {
                 .sefazStatus(SefazStatus.AUTHORIZED)
                 .issuerCnpjStatus(CnpjStatus.ACTIVE)
                 .payerCnpjStatus(CnpjStatus.ACTIVE)
+                .issuerTotalInvoices(20)
+                .issuerDefaultCount(7)
+                .payerTotalInvoices(20)
+                .payerDefaultCount(6)
+                .pairTotalInvoices(10)
+                .pairDefaultCount(2)
+                .build();
+
+        when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));
+        when(lowRiskRule.evaluate(context)).thenReturn(
+                RuleResult.of("sefaz_status", "nfe_validation", 0.0, 0.25, "DECREASE", "ok", "SEFAZ")
+        );
+
+        RiskEngineService.EngineResult result = service.score(context);
+
+        assertThat(result.score()).isEqualTo(0.90);
+    }
+
+    private static ScoringContext context(boolean hasUnavailableSource) {
+        return context(hasUnavailableSource, SefazStatus.AUTHORIZED, CnpjStatus.ACTIVE, CnpjStatus.ACTIVE);
+    }
+
+    private static ScoringContext context(
+            boolean hasUnavailableSource,
+            SefazStatus sefazStatus,
+            CnpjStatus issuerStatus,
+            CnpjStatus payerStatus
+    ) {
+        return ScoringContext.builder()
+                .nfeData(NFeData.builder()
+                        .accessKey("12345678901234567890123456789012345678901234")
+                        .totalAmount(new BigDecimal("10000.00"))
+                        .dueDate(LocalDate.now().plusDays(30))
+                        .status(InvoiceStatus.AUTHORIZED)
+                        .build())
+                .sefazStatus(sefazStatus)
+                .issuerCnpjStatus(issuerStatus)
+                .payerCnpjStatus(payerStatus)
                 .hasUnavailableSource(hasUnavailableSource)
                 .build();
     }

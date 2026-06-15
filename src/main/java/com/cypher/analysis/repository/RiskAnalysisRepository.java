@@ -15,33 +15,37 @@ import java.util.UUID;
 
 public interface RiskAnalysisRepository extends JpaRepository<RiskAnalysis, UUID> {
 
-    Optional<RiskAnalysis> findTopByInvoiceIdOrderByCreatedAtDesc(UUID invoiceId);
+    Optional<RiskAnalysis> findTopByTenantIdAndInvoiceIdOrderByCreatedAtDesc(UUID tenantId, UUID invoiceId);
+    Optional<RiskAnalysis> findByIdAndTenantId(UUID id, UUID tenantId);
+    Page<RiskAnalysis> findByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
+    Page<RiskAnalysis> findByTenantIdAndRiskLevelOrderByCreatedAtDesc(UUID tenantId, RiskLevel riskLevel, Pageable pageable);
+    long countByTenantId(UUID tenantId);
+    long countByTenantIdAndRiskLevel(UUID tenantId, RiskLevel riskLevel);
 
-    Page<RiskAnalysis> findAllByOrderByCreatedAtDesc(Pageable pageable);
-
-    Page<RiskAnalysis> findByRiskLevelOrderByCreatedAtDesc(RiskLevel riskLevel, Pageable pageable);
-
-    long countByRiskLevel(RiskLevel riskLevel);
-
-    @Query("SELECT COALESCE(AVG(r.score), 0.0) FROM RiskAnalysis r")
-    double averageScore();
+    @Query("SELECT COALESCE(AVG(r.score), 0.0) FROM RiskAnalysis r WHERE r.tenantId = :tenantId")
+    double averageScoreByTenant(@Param("tenantId") UUID tenantId);
 
     @Query(value = """
             SELECT COALESCE(AVG((ra.financial_metrics ->> 'faceValue')::numeric), 0)
             FROM risk_analysis ra
             INNER JOIN invoice i ON i.id = ra.invoice_id
             WHERE i.issuer_cnpj = :issuerCnpj
+              AND ra.tenant_id  = :tenantId
               AND ra.financial_metrics IS NOT NULL
             """, nativeQuery = true)
-    BigDecimal averageFaceValueByIssuerCnpj(@Param("issuerCnpj") String issuerCnpj);
+    BigDecimal averageFaceValueByIssuerCnpjAndTenant(
+            @Param("issuerCnpj") String issuerCnpj,
+            @Param("tenantId") UUID tenantId
+    );
 
     @Query(value = """
             SELECT TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
                    COUNT(*) AS cnt
             FROM risk_analysis
             WHERE created_at >= NOW() - INTERVAL '30 days'
+              AND tenant_id = :tenantId
             GROUP BY day
             ORDER BY day
             """, nativeQuery = true)
-    List<Object[]> countPerDayLast30Days();
+    List<Object[]> countPerDayLast30Days(@Param("tenantId") UUID tenantId);
 }

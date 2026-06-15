@@ -11,10 +11,23 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "outcomes")
+@Table(
+        name = "outcomes",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uq_outcomes_tenant_analysis",
+                        columnNames = {"tenant_id", "analysis_id"}
+                )
+        },
+        indexes = {
+                @Index(name = "idx_outcomes_tenant_id", columnList = "tenant_id"),
+                @Index(name = "idx_outcomes_tenant_event_date", columnList = "tenant_id, event_date")
+        }
+)
 @Getter
 @Builder
 @NoArgsConstructor
@@ -31,7 +44,7 @@ public class Outcome {
     private UUID tenantId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "outcome_type", nullable = false)
+    @Column(name = "outcome_type", nullable = false, length = 50)
     private OutcomeType outcomeType;
 
     @Column(name = "event_date", nullable = false)
@@ -54,10 +67,10 @@ public class Outcome {
                              LocalDate eventDate, BigDecimal amountReceived,
                              Integer daysLate, String notes) {
         return Outcome.builder()
-                .analysisId(analysisId)
-                .tenantId(tenantId)
-                .outcomeType(outcomeType)
-                .eventDate(eventDate)
+                .analysisId(Objects.requireNonNull(analysisId, "analysisId é obrigatório"))
+                .tenantId(Objects.requireNonNull(tenantId, "tenantId é obrigatório"))
+                .outcomeType(Objects.requireNonNull(outcomeType, "outcomeType é obrigatório"))
+                .eventDate(Objects.requireNonNull(eventDate, "eventDate é obrigatório"))
                 .amountReceived(amountReceived)
                 .daysLate(daysLate)
                 .notes(notes)

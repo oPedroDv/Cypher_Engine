@@ -13,7 +13,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/analyses")
-@CrossOrigin(origins = "*")
 public class AnalysisController {
 
     private final AnalysisService service;
@@ -24,13 +23,13 @@ public class AnalysisController {
 
     @PostMapping
     public ResponseEntity<AnalysisResponse> analyze(@Valid @RequestBody AnalysisRequest request) {
-        AnalysisResponse response = service.analyze(request, TenantContext.get());
+        AnalysisResponse response = service.analyze(request, TenantContext.getRequired());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<AnalysisResponse> findById(@PathVariable UUID id) {
-        return service.findById(id)
+        return service.findById(id, TenantContext.getRequired())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

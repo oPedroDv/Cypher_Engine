@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -22,10 +23,10 @@ public class IdempotencyService {
         this.redis = redis;
     }
 
-    public String checkOrReverse(String idempotencyKey) {
+    public String checkOrReverse(UUID tenantId, String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
 
-        String redisKey = PREFIX + idempotencyKey;
+        String redisKey = redisKey(tenantId, idempotencyKey);
         String existing = redis.opsForValue().get(redisKey);
 
         if (existing != null) {
@@ -41,22 +42,28 @@ public class IdempotencyService {
         if (Boolean.FALSE.equals(reserved)) {
             throw new IdempotencyConflictException(idempotencyKey);
         }
-
         log.debug("Chave de idempotência reservada: {}", idempotencyKey);
         return null;
     }
 
-    public void confirm(String idempotencyKey, String analysisId) {
+    public void confirm(UUID tenantId, String idempotencyKey, String analysisId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
 
-        redis.opsForValue().set(PREFIX + idempotencyKey, analysisId, RESULT_TTL);
+        redis.opsForValue().set(redisKey(tenantId, idempotencyKey), analysisId, RESULT_TTL);
         log.debug("Chave de idempotência confirmada: {} → analysisId={}", idempotencyKey, analysisId);
     }
 
-    public void release(String idempotencyKey) {
+    public void release(UUID tenantId, String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
 
-        redis.delete(PREFIX + idempotencyKey);
+        redis.delete(redisKey(tenantId, idempotencyKey));
         log.debug("Chave de idempotência liberada após erro: {}", idempotencyKey);
+    }
+
+    private String redisKey(UUID tenantId, String idempotencyKey) {
+        if (tenantId == null) {
+            throw new IllegalArgumentException("tenantId é obrigatório para idempotência");
+        }
+        return PREFIX + tenantId + ":" + idempotencyKey;
     }
 }

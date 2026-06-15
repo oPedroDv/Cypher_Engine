@@ -21,7 +21,7 @@ public class ObservabilityConfig {
     @Value("${spring.application.name:cypher-risk-engine}")
     private String applicationName;
 
-    @Value("${cypher.environment:local")
+    @Value("${cypher.environment:local}")
     private String environment;
 
     @Bean
@@ -34,14 +34,14 @@ public class ObservabilityConfig {
     }
 
     @Bean
-    public JvmMemoryMetrics jvmMemoryMetrics() {return new JvmMemoryMetrics();}
+    public JvmMemoryMetrics jvmMemoryMetrics() { return new JvmMemoryMetrics(); }
 
     @Bean
-    public JvmGcMetrics jvmGcMetrics() {return new JvmGcMetrics();}
+    public JvmGcMetrics jvmGcMetrics() { return new JvmGcMetrics(); }
 
     @Bean
-    public JvmThreadMetrics jvmThreadMetrics() {return new JvmThreadMetrics();}
+    public JvmThreadMetrics jvmThreadMetrics() { return new JvmThreadMetrics(); }
 
     @Bean
-    public ProcessorMetrics processorMetrics() {return new ProcessorMetrics();}
+    public ProcessorMetrics processorMetrics() { return new ProcessorMetrics(); }
 }

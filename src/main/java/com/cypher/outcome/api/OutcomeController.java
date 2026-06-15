@@ -24,7 +24,7 @@ public class OutcomeController {
             @PathVariable UUID analysisId,
             @Valid @RequestBody OutcomeRequest request
     ) {
-        UUID tenantId = TenantContext.get();
+        UUID tenantId = TenantContext.getRequired();
         log.info("Registrando outcome analysisId={} outcome={} tenant={}", analysisId, request.outcome(), tenantId);
 
         outcomeService.register(analysisId, request, tenantId);
