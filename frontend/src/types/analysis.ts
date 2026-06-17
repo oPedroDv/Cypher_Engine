@@ -24,6 +24,13 @@ export interface FinancialDto {
   isViable: boolean
 }
 
+export interface ScoreAdjustmentDto {
+  type: string
+  from: number
+  to: number
+  reason: string
+}
+
 // ─── Analysis Request ───────────────────────────────────────────────────────────
 export interface AnalysisRequest {
   xmlBase64: string
@@ -42,6 +49,7 @@ export interface AnalysisResponse {
   recommendation: string
   modelVersion: string
   dataIsPartial: boolean
+  scoreAdjustments: ScoreAdjustmentDto[]
   factors: FactorDto[]
   financial: FinancialDto | null
   createdAt: string       // ISO 8601

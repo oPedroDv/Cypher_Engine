@@ -77,13 +77,28 @@ public class RiskEngineService {
         floor = Math.max(floor, historicalFloor(context));
         floor = Math.max(floor, maturityFloor(context));
         floor = Math.max(floor, valueAnomalyFloor(context));
+        floor = Math.max(floor, externalValidationFloor(context));
 
         double score = Math.max(weightedScore, floor);
-        if (context.hasUnavailableSource() || hasAnyFallback) {
+        if (shouldApplySourceUnavailablePenalty(context, hasAnyFallback)) {
             score += 0.10;
             score = Math.max(score, 0.35);
         }
         return clamp(score);
+    }
+
+    private boolean shouldApplySourceUnavailablePenalty(ScoringContext context, boolean hasAnyFallback) {
+        return hasAnyFallback || (context.hasUnavailableSource() && context.sefazStatus() != SefazStatus.NOT_CONFIGURED);
+    }
+
+    private double externalValidationFloor(ScoringContext context) {
+        if (context.sefazStatus() != SefazStatus.NOT_CONFIGURED) {
+            return 0.0;
+        }
+        if (context.issuerCnpjStatus() == CnpjStatus.UNKNOWN || context.payerCnpjStatus() == CnpjStatus.UNKNOWN) {
+            return 0.25;
+        }
+        return 0.20;
     }
 
     private double sefazFloor(SefazStatus status) {
@@ -91,7 +106,7 @@ public class RiskEngineService {
             case CANCELLED, DENIED -> 0.95;
             case PENDING -> 0.70;
             case ERROR, UNAVAILABLE -> 0.45;
-            case AUTHORIZED -> 0.0;
+            case AUTHORIZED, NOT_CONFIGURED -> 0.0;
         };
     }
 

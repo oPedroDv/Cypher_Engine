@@ -9,7 +9,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?logo=postgresql&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green)
+![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue)
 
 *Turning raw invoice data into intelligent, explainable credit decisions.*
 
@@ -123,6 +123,12 @@ flowchart TD
 - date-fns
 - ESLint
 
+## AI Disclosure
+
+The current frontend implementation was created exclusively with AI assistance. It should be treated as an active product surface that needs regular human review for accessibility, usability, performance, security, and maintainability.
+
+Frontend contributions are welcome, especially when they improve code clarity, user experience, test coverage, API contract alignment, and production readiness.
+
 ### Testing
 - JUnit 5
 - Mockito
@@ -174,6 +180,12 @@ Actively under development.
 - Resilience through intelligent fallbacks
 - Domain-Driven Design
 
+## Contributing
 
+Cypher Engine is preparing for open source collaboration. Please read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). See [LICENSE.md](LICENSE.md).
 
 Developed by Pedro Andrade

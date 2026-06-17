@@ -25,9 +25,12 @@ public class PayerHistoryRule implements RiskRule {
         double score;
         String explanation;
 
-        if (defaultRate == 0.0 && lateRate == 0.0) {
+        if (defaultRate == 0.0 && lateRate == 0.0 && total >= 10) {
             score       = 0.0;
             explanation = "Sacado com %d pagamento(s) em dia, sem inadimplências — perfil excelente.".formatted(total);
+        } else if (defaultRate == 0.0 && lateRate == 0.0) {
+            score       = 0.10;
+            explanation = "Sacado com %d pagamento(s) em dia, sem inadimplências — histórico inicial positivo.".formatted(total);
         } else if (defaultRate == 0.0 && lateRate < 0.10) {
             score       = 0.15;
             explanation = "Sacado sem inadimplências, com %.0f%% de atrasos — perfil aceitável.".formatted(lateRate * 100);

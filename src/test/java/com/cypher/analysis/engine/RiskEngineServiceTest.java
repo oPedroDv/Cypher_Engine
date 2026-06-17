@@ -113,6 +113,34 @@ class RiskEngineServiceTest {
     }
 
     @Test
+    void scoreAppliesLowMediumBoundaryWhenSefazIsNotConfigured() {
+        ScoringContext context = context(true, SefazStatus.NOT_CONFIGURED, CnpjStatus.ACTIVE, CnpjStatus.ACTIVE);
+        when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));
+        when(lowRiskRule.evaluate(context)).thenReturn(
+                RuleResult.of("sefaz_status", "nfe_validation", 0.0, 0.25, "DECREASE", "not configured", "SEFAZ")
+        );
+
+        RiskEngineService.EngineResult result = service.score(context);
+
+        assertThat(result.score()).isEqualTo(0.20);
+        assertThat(result.dataPartial()).isTrue();
+    }
+
+    @Test
+    void scoreAppliesMediumFloorWhenSefazAndCnpjAreNotVerified() {
+        ScoringContext context = context(true, SefazStatus.NOT_CONFIGURED, CnpjStatus.UNKNOWN, CnpjStatus.ACTIVE);
+        when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));
+        when(lowRiskRule.evaluate(context)).thenReturn(
+                RuleResult.of("sefaz_status", "nfe_validation", 0.0, 0.25, "DECREASE", "not configured", "SEFAZ")
+        );
+
+        RiskEngineService.EngineResult result = service.score(context);
+
+        assertThat(result.score()).isEqualTo(0.25);
+        assertThat(result.dataPartial()).isTrue();
+    }
+
+    @Test
     void scoreEscalatesCancelledSefazToCriticalEvenWhenWeightedRulesAreLow() {
         ScoringContext context = context(false, SefazStatus.CANCELLED, CnpjStatus.ACTIVE, CnpjStatus.ACTIVE);
         when(registry.getActiveRules()).thenReturn(List.of(lowRiskRule));

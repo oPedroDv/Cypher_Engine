@@ -2,9 +2,9 @@ package com.cypher.analysis.domain;
 
 public record RiskScore(double value) {
 
-    private static final double LOW_THRESHOLD      = 0.30;
-    private static final double MEDIUM_THRESHOLD   = 0.60;
-    private static final double HIGH_THRESHOLD     = 0.80;
+    private static final double LOW_THRESHOLD      = 0.20;
+    private static final double MEDIUM_THRESHOLD   = 0.50;
+    private static final double HIGH_THRESHOLD     = 0.75;
 
     public RiskScore {
         if (value < 0. || value > 1.0) {

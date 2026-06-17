@@ -20,6 +20,7 @@ public record AnalysisResponse(
         String modelVersion,
 
         boolean dataIsPartial,
+        List<ScoreAdjustmentDto> scoreAdjustments,
         List<FactorDto> factors,
         FinancialDto financial,
 
@@ -46,6 +47,7 @@ public record AnalysisResponse(
                 resolveRecommendation(riskScore.level(), analysis.isDataPartial()),
                 analysis.getModelVersion(),
                 analysis.isDataPartial(),
+                resolveScoreAdjustments(analysis.getScore(), factors),
                 factors,
                 financial,
                 analysis.getCreatedAt()
@@ -53,14 +55,48 @@ public record AnalysisResponse(
     }
 
     private static String resolveRecommendation(RiskLevel level, boolean partial) {
-        String suffix = partial ? " (dados parciais — verifique fontes indisponíveis)" : "";
+        if (partial) {
+            return switch (level) {
+                case LOW, MEDIUM -> "Dados parciais. Valide as fontes indisponíveis antes de aprovar a antecipação.";
+                case HIGH -> "Exposição relevante com dados parciais. Considere taxa ajustada, garantias adicionais ou revisão manual.";
+                case CRITICAL -> "Risco elevado com dados parciais. Não recomendado antecipar sem análise manual.";
+            };
+        }
         return switch (level) {
-            case LOW      -> "Perfil favorável. Antecipação recomendada." + suffix;
-            case MEDIUM   -> "Atenção recomendada. Verifique histórico do sacado." + suffix;
-            case HIGH     -> "Exposição relevante. Considere taxa ajustada ou garantias adicionais." + suffix;
-            case CRITICAL -> "Risco elevado. Não recomendado antecipar sem análise manual." + suffix;
+            case LOW      -> "Perfil favorável. Antecipação recomendada.";
+            case MEDIUM   -> "Atenção recomendada. Verifique histórico do sacado.";
+            case HIGH     -> "Exposição relevante. Considere taxa ajustada ou garantias adicionais.";
+            case CRITICAL -> "Risco elevado. Não recomendado antecipar sem análise manual.";
         };
     }
+
+    private static List<ScoreAdjustmentDto> resolveScoreAdjustments(double finalScore, List<FactorDto> factors) {
+        double weightedScore = factors.stream()
+                .mapToDouble(FactorDto::contribution)
+                .sum();
+
+        if (finalScore <= weightedScore + 0.000001) {
+            return List.of();
+        }
+
+        return List.of(new ScoreAdjustmentDto(
+                "ESCALATION_FLOOR",
+                round(weightedScore),
+                round(finalScore),
+                "Score final elevado por piso de segurança da engine."
+        ));
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 10_000d) / 10_000d;
+    }
+
+    public record ScoreAdjustmentDto(
+            String type,
+            double from,
+            double to,
+            String reason
+    ) {}
 
     public record FactorDto(
             String name,

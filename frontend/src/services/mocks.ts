@@ -14,6 +14,7 @@ export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
     recommendation: 'Perfil favorável. Antecipação recomendada.',
     modelVersion: 'v1.0',
     dataIsPartial: false,
+    scoreAdjustments: [],
     createdAt: iso(daysAgo(1)),
     financial: {
       faceValue: 120000,
@@ -40,6 +41,9 @@ export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
     recommendation: 'Atenção recomendada. Verifique histórico do sacado.',
     modelVersion: 'v1.0',
     dataIsPartial: true,
+    scoreAdjustments: [
+      { type: 'ESCALATION_FLOOR', from: 0.21, to: 0.52, reason: 'Score final elevado por piso de segurança da engine.' },
+    ],
     createdAt: iso(daysAgo(2)),
     financial: {
       faceValue: 75000,
@@ -65,6 +69,7 @@ export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
     recommendation: 'Exposição relevante. Considere taxa ajustada ou garantias adicionais.',
     modelVersion: 'v1.0',
     dataIsPartial: false,
+    scoreAdjustments: [],
     createdAt: iso(daysAgo(3)),
     financial: {
       faceValue: 300000,
@@ -90,6 +95,9 @@ export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
     recommendation: 'Risco elevado. Não recomendado antecipar sem análise manual.',
     modelVersion: 'v1.0',
     dataIsPartial: true,
+    scoreAdjustments: [
+      { type: 'ESCALATION_FLOOR', from: 0.24, to: 0.91, reason: 'Score final elevado por piso de segurança da engine.' },
+    ],
     createdAt: iso(daysAgo(5)),
     financial: null,
     factors: [
@@ -100,11 +108,12 @@ export const MOCK_ANALYSIS_LIST: AnalysisResponse[] = [
     analysisId: 'a1b2c3d4-0005-0005-0005-000000000005',
     invoiceId: 'inv-0005',
     idempotent: false,
-    score: 0.22,
+    score: 0.18,
     riskLevel: 'LOW',
     recommendation: 'Perfil favorável. Antecipação recomendada.',
     modelVersion: 'v1.0',
     dataIsPartial: false,
+    scoreAdjustments: [],
     createdAt: iso(daysAgo(7)),
     financial: {
       faceValue: 55000,

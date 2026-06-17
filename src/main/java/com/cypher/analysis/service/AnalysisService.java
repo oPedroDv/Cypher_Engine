@@ -14,10 +14,12 @@ import com.cypher.analysis.engine.RiskEngineService;
 import com.cypher.analysis.engine.ScoringContext;
 import com.cypher.analysis.engine.SefazStatus;
 import com.cypher.analysis.repository.InvoiceRepository;
+import com.cypher.analysis.repository.InvoiceHistoryStats;
 import com.cypher.analysis.repository.RiskAnalysisRepository;
 import com.cypher.company.domain.CnpjStatus;
 import com.cypher.company.service.CompanyService;
 import com.cypher.outcome.domain.OutcomeType;
+import com.cypher.outcome.repository.OutcomeHistoryStats;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import lombok.RequiredArgsConstructor;
@@ -202,81 +204,74 @@ public class AnalysisService {
         String issuerCnpj = nfeData.getIssuerCnpj();
         String payerCnpj = nfeData.getRecipientCnpj();
 
-        int issuerTotal = countIssuerInvoices(tenantId, issuerCnpj);
-        int payerTotal = countPayerInvoices(tenantId, payerCnpj);
-        int pairTotal = countPairInvoices(tenantId, issuerCnpj, payerCnpj);
-
+        InvoiceHistoryStats invoiceStats = summarizeInvoiceHistory(tenantId, issuerCnpj, payerCnpj);
         EnumSet<OutcomeType> defaultOutcomes = EnumSet.of(OutcomeType.DEFAULT, OutcomeType.CANCELLED);
-        int issuerDefaults = countIssuerOutcomes(issuerCnpj, tenantId, defaultOutcomes);
-        int payerDefaults = countPayerOutcomes(payerCnpj, tenantId, defaultOutcomes);
-        int pairDefaults = countPairOutcomes(issuerCnpj, payerCnpj, tenantId, defaultOutcomes);
-        int payerLatePayments = countPayerLatePayments(payerCnpj, tenantId);
-        BigDecimal issuerAvgValue = averageIssuerFaceValue(tenantId, issuerCnpj);
+        OutcomeHistoryStats outcomeStats = summarizeOutcomeHistory(issuerCnpj, payerCnpj, tenantId, defaultOutcomes);
 
         return ScoringContext.builder()
                 .nfeData(nfeData)
-                .sefazStatus(SefazStatus.from(sefazResult.status()))
+                .sefazStatus(SefazStatus.from(sefazResult.status(), sefazResult.notConfigured()))
                 .issuerCnpjStatus(issuerStatus)
                 .payerCnpjStatus(payerStatus)
-                .issuerTotalInvoices(issuerTotal)
-                .issuerDefaultCount(issuerDefaults)
-                .issuerAvgValue(issuerAvgValue)
-                .payerTotalInvoices(payerTotal)
-                .payerLatePaymentCount(payerLatePayments)
-                .payerDefaultCount(payerDefaults)
-                .pairTotalInvoices(pairTotal)
-                .pairDefaultCount(pairDefaults)
+                .issuerTotalInvoices(invoiceStats.issuerTotalAsInt())
+                .issuerDefaultCount(outcomeStats.issuerDefaultsAsInt())
+                .issuerAvgValue(invoiceStats.issuerAvgValue())
+                .payerTotalInvoices(invoiceStats.payerTotalAsInt())
+                .payerLatePaymentCount(outcomeStats.payerLatePaymentsAsInt())
+                .payerDefaultCount(outcomeStats.payerDefaultsAsInt())
+                .pairTotalInvoices(invoiceStats.pairTotalAsInt())
+                .pairDefaultCount(outcomeStats.pairDefaultsAsInt())
                 .requestedAdvanceValue(request.requestedAdvanceValue())
                 .requestedMonthlyRate(request.requestedMonthlyRate())
                 .hasUnavailableSource(sefazResult.sourceUnavailable())
                 .build();
     }
 
-    private int countIssuerInvoices(UUID tenantId, String issuerCnpj) {
-        return isBlank(issuerCnpj) ? 0 : invoiceRepository.countByTenantIdAndIssuerCnpj(tenantId, issuerCnpj);
-    }
-
-    private int countPayerInvoices(UUID tenantId, String payerCnpj) {
-        return isBlank(payerCnpj) ? 0 : invoiceRepository.countByTenantIdAndRecipientCnpj(tenantId, payerCnpj);
-    }
-
-    private int countPairInvoices(UUID tenantId, String issuerCnpj, String payerCnpj) {
-        return isBlank(issuerCnpj) || isBlank(payerCnpj)
-                ? 0
-                : invoiceRepository.countByTenantIdAndIssuerCnpjAndRecipientCnpj(tenantId, issuerCnpj, payerCnpj);
-    }
-
-    private int countIssuerOutcomes(String issuerCnpj, UUID tenantId, EnumSet<OutcomeType> outcomeTypes) {
-        return isBlank(issuerCnpj) || tenantId == null
-                ? 0
-                : outcomeRepository.countByIssuerCnpjAndOutcomeTypes(issuerCnpj, tenantId, outcomeTypes);
-    }
-
-    private int countPayerOutcomes(String payerCnpj, UUID tenantId, EnumSet<OutcomeType> outcomeTypes) {
-        return isBlank(payerCnpj) || tenantId == null
-                ? 0
-                : outcomeRepository.countByPayerCnpjAndOutcomeTypes(payerCnpj, tenantId, outcomeTypes);
-    }
-
-    private int countPairOutcomes(String issuerCnpj, String payerCnpj, UUID tenantId, EnumSet<OutcomeType> outcomeTypes) {
-        return isBlank(issuerCnpj) || isBlank(payerCnpj) || tenantId == null
-                ? 0
-                : outcomeRepository.countByPairAndOutcomeTypes(issuerCnpj, payerCnpj, tenantId, outcomeTypes);
-    }
-
-    private int countPayerLatePayments(String payerCnpj, UUID tenantId) {
-        return isBlank(payerCnpj) || tenantId == null
-                ? 0
-                : outcomeRepository.countLateByPayerCnpj(payerCnpj, tenantId);
-    }
-
-    private BigDecimal averageIssuerFaceValue(UUID tenantId, String issuerCnpj) {
-        if (isBlank(issuerCnpj)) {
-            return null;
+    private InvoiceHistoryStats summarizeInvoiceHistory(UUID tenantId, String issuerCnpj, String payerCnpj) {
+        if (isBlank(issuerCnpj) || isBlank(payerCnpj)) {
+            return emptyInvoiceHistoryStats();
         }
 
-        BigDecimal average = riskAnalysisRepository.averageFaceValueByIssuerCnpjAndTenant(issuerCnpj, tenantId);
-        return average != null && average.compareTo(BigDecimal.ZERO) > 0 ? average : null;
+        InvoiceHistoryStats stats = invoiceRepository.summarizeHistory(tenantId, issuerCnpj, payerCnpj);
+        return stats != null ? stats : emptyInvoiceHistoryStats();
+    }
+
+    private OutcomeHistoryStats summarizeOutcomeHistory(
+            String issuerCnpj,
+            String payerCnpj,
+            UUID tenantId,
+            EnumSet<OutcomeType> outcomeTypes
+    ) {
+        if (isBlank(issuerCnpj) || isBlank(payerCnpj) || tenantId == null) {
+            return new OutcomeHistoryStats(0, 0, 0, 0);
+        }
+
+        OutcomeHistoryStats stats = outcomeRepository.summarizeHistory(issuerCnpj, payerCnpj, tenantId, outcomeTypes);
+        return stats != null ? stats : new OutcomeHistoryStats(0, 0, 0, 0);
+    }
+
+    private InvoiceHistoryStats emptyInvoiceHistoryStats() {
+        return new InvoiceHistoryStats() {
+            @Override
+            public Number getIssuerTotal() {
+                return 0;
+            }
+
+            @Override
+            public Number getPayerTotal() {
+                return 0;
+            }
+
+            @Override
+            public Number getPairTotal() {
+                return 0;
+            }
+
+            @Override
+            public BigDecimal getIssuerAvgValue() {
+                return null;
+            }
+        };
     }
 
     private void requireTenant(UUID tenantId) {

@@ -117,4 +117,24 @@ public interface OutcomeRepository extends JpaRepository<Outcome, UUID> {
             @Param("cnpj") String cnpj,
             @Param("tenantId") UUID tenantId
     );
+
+    @Query("""
+            SELECT new com.cypher.outcome.repository.OutcomeHistoryStats(
+                COALESCE(SUM(CASE WHEN i.issuerCnpj = :issuerCnpj AND o.outcomeType IN :defaultOutcomes THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN i.recipientCnpj = :payerCnpj AND o.outcomeType IN :defaultOutcomes THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN i.issuerCnpj = :issuerCnpj AND i.recipientCnpj = :payerCnpj AND o.outcomeType IN :defaultOutcomes THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN i.recipientCnpj = :payerCnpj AND o.daysLate > 0 THEN 1 ELSE 0 END), 0)
+            )
+            FROM Outcome o
+            INNER JOIN RiskAnalysis ra ON ra.id = o.analysisId
+            INNER JOIN Invoice i ON i.id = ra.invoice.id
+            WHERE o.tenantId = :tenantId
+              AND ra.tenantId = :tenantId
+            """)
+    OutcomeHistoryStats summarizeHistory(
+            @Param("issuerCnpj") String issuerCnpj,
+            @Param("payerCnpj") String payerCnpj,
+            @Param("tenantId") UUID tenantId,
+            @Param("defaultOutcomes") Collection<OutcomeType> defaultOutcomes
+    );
 }

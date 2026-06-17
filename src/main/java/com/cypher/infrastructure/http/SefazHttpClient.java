@@ -45,7 +45,7 @@ public class SefazHttpClient implements SefazClient {
 
         if (!enabled) {
             log.warn("Integração SEFAZ não configurada. accessKey={}", cleanAccessKey);
-            return ConsultationResult.unavailable(PROVIDER, "Integração SEFAZ não configurada");
+            return ConsultationResult.notConfigured(PROVIDER, "Integração SEFAZ não configurada neste ambiente");
         }
 
         log.debug("Consultando status NF-e na SEFAZ accessKey={}", cleanAccessKey);

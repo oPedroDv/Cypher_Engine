@@ -41,6 +41,10 @@ public class SefazStatusRule implements RiskRule {
                 score       = 0.75;
                 explanation = "Erro na consulta SEFAZ — documento não confirmado por fonte oficial.";
             }
+            case NOT_CONFIGURED -> {
+                score       = 0.35;
+                explanation = "Integração SEFAZ não configurada neste ambiente — validação oficial não executada; incerteza moderada aplicada.";
+            }
             default -> {
                 score       = 0.65;
                 explanation = "Status SEFAZ desconhecido: " + status + " — score conservador aplicado.";

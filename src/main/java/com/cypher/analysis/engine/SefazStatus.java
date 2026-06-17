@@ -9,7 +9,8 @@ public enum SefazStatus {
     CANCELLED,
     DENIED,
     ERROR,
-    UNAVAILABLE;
+    UNAVAILABLE,
+    NOT_CONFIGURED;
 
     public static SefazStatus from(InvoiceStatus invoiceStatus) {
         if (invoiceStatus == null) return UNAVAILABLE;
@@ -20,6 +21,10 @@ public enum SefazStatus {
             case PENDING    -> PENDING;
             case ERROR      -> ERROR;
         };
+    }
+
+    public static SefazStatus from(InvoiceStatus invoiceStatus, boolean notConfigured) {
+        return notConfigured ? NOT_CONFIGURED : from(invoiceStatus);
     }
 
     public boolean isFit() {
