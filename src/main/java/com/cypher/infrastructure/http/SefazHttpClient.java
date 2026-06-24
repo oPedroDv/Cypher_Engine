@@ -9,8 +9,10 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Objects;
 
 @Slf4j
@@ -28,13 +30,19 @@ public class SefazHttpClient implements SefazClient {
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
             @Value("${sefaz.url:}") String baseUrl,
-            @Value("${sefaz.enabled:false}") boolean enabled
+            @Value("${sefaz.enabled:false}") boolean enabled,
+            @Value("${cypher.http.connect-timeout:3s}") Duration connectTimeout,
+            @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
         this.objectMapper = objectMapper;
         this.enabled = enabled && baseUrl != null && !baseUrl.isBlank();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://localhost" : baseUrl)
                 .defaultHeader("Accept", "application/json")
+                .requestFactory(requestFactory)
                 .build();
     }
 

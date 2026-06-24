@@ -6,12 +6,7 @@ export async function getHealth(): Promise<HealthResponse> {
     const { data } = await apiClient.get<HealthResponse>('/actuator/health')
     return data
   } catch {
-    try {
-      const { data } = await apiClient.get<HealthResponse>('/api/health')
-      return data
-    } catch {
-      return { status: 'DOWN' }
-    }
+    return { status: 'DOWN' }
   }
 }
 

@@ -17,7 +17,12 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -29,6 +34,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -48,6 +54,12 @@ public class SecurityConfig {
 
     @Value("${cypher.security.jwt.secret}")
     private String jwtSecret;
+
+    @Value("${cypher.security.jwt.issuer}")
+    private String jwtIssuer;
+
+    @Value("${cypher.security.jwt.audience}")
+    private String jwtAudience;
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -95,7 +107,25 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        return NimbusJwtDecoder.withSecretKey(key).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).build();
+        OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> defaults =
+                JwtValidators.createDefaultWithIssuer(jwtIssuer);
+        OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> audience = jwt ->
+                jwt.getAudience().contains(jwtAudience)
+                        ? OAuth2TokenValidatorResult.success()
+                        : OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                                "invalid_token", "JWT sem a audience esperada", null));
+        OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> tenant = jwt -> {
+            try {
+                UUID.fromString(jwt.getClaimAsString("tenant_id"));
+                return OAuth2TokenValidatorResult.success();
+            } catch (RuntimeException ex) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                        "invalid_token", "JWT sem tenant_id UUID válido", null));
+            }
+        };
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(defaults, audience, tenant));
+        return decoder;
     }
 
     @Bean

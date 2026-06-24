@@ -22,7 +22,7 @@ export default function HistoryPage() {
   const [search, setSearch] = useState('')
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'ALL'>('ALL')
 
-  const { data, isLoading } = useAnalysisList({
+  const { data, isLoading, error, refetch } = useAnalysisList({
     page,
     size: PAGE_SIZE,
     riskLevel: riskFilter === 'ALL' ? undefined : riskFilter,
@@ -63,7 +63,9 @@ export default function HistoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Histórico de Análises</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {data ? `${data.totalElements.toLocaleString('pt-BR')} análises no total` : 'Carregando…'}
+            {error
+              ? 'Falha ao carregar o histórico'
+              : data ? `${data.totalElements.toLocaleString('pt-BR')} análises no total` : 'Carregando…'}
           </p>
         </div>
         <button onClick={handleExportCsv} className="btn-secondary">
@@ -120,7 +122,20 @@ export default function HistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {error ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12">
+                    <p className="text-sm text-risk-high">
+                      {typeof error === 'object' && error !== null && 'message' in error
+                        ? String(error.message)
+                        : 'Não foi possível carregar o histórico.'}
+                    </p>
+                    <button onClick={() => refetch()} className="btn-ghost text-xs mt-2">
+                      Tentar novamente
+                    </button>
+                  </td>
+                </tr>
+              ) : isLoading ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12">
                     <div className="flex justify-center">

@@ -9,8 +9,10 @@ public class DuplicateInvoiceException extends CypherException {
 
     public DuplicateInvoiceException(String nfeKey, String existingAnalysisId) {
         super(
-                "NF-e com chave '%s' já foi analisada. Use o ID existente: %s"
-                        .formatted(nfeKey, existingAnalysisId),
+                existingAnalysisId == null
+                        ? "NF-e com chave '%s' já está sendo ou foi analisada".formatted(nfeKey)
+                        : "NF-e com chave '%s' já foi analisada. Use o ID existente: %s"
+                                .formatted(nfeKey, existingAnalysisId),
                 HttpStatus.CONFLICT,
                 "DUPLICATE_INVOICE"
         );

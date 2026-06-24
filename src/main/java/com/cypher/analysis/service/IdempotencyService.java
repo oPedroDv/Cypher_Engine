@@ -4,6 +4,8 @@ import com.cypher.shared.exception.IdempotencyConflictException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -39,18 +41,56 @@ public class IdempotencyService {
         }
 
         Boolean reserved = redis.opsForValue().setIfAbsent(redisKey, PROCESSING, PROCESSING_TTL);
-        if (Boolean.FALSE.equals(reserved)) {
+        if (!Boolean.TRUE.equals(reserved)) {
             throw new IdempotencyConflictException(idempotencyKey);
         }
+        releaseReservationOnRollback(tenantId, idempotencyKey);
         log.debug("Chave de idempotência reservada: {}", idempotencyKey);
         return null;
     }
 
-    public void confirm(UUID tenantId, String idempotencyKey, String analysisId) {
+    public void confirmAfterCommit(UUID tenantId, String idempotencyKey, String analysisId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
 
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        confirm(tenantId, idempotencyKey, analysisId);
+                    } catch (RuntimeException ex) {
+                        log.error("Falha ao publicar resultado idempotente após commit key={}: {}",
+                                idempotencyKey, ex.getMessage());
+                        try {
+                            release(tenantId, idempotencyKey);
+                        } catch (RuntimeException releaseException) {
+                            log.error("Falha ao liberar reserva idempotente key={}: {}",
+                                    idempotencyKey, releaseException.getMessage());
+                        }
+                    }
+                }
+            });
+            return;
+        }
+        confirm(tenantId, idempotencyKey, analysisId);
+    }
+
+    private void confirm(UUID tenantId, String idempotencyKey, String analysisId) {
         redis.opsForValue().set(redisKey(tenantId, idempotencyKey), analysisId, RESULT_TTL);
         log.debug("Chave de idempotência confirmada: {} → analysisId={}", idempotencyKey, analysisId);
+    }
+
+    private void releaseReservationOnRollback(UUID tenantId, String idempotencyKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    release(tenantId, idempotencyKey);
+                }
+            }
+        });
     }
 
     public void release(UUID tenantId, String idempotencyKey) {

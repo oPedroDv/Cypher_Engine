@@ -56,10 +56,13 @@ export interface AnalysisResponse {
 }
 
 // ─── Outcome ───────────────────────────────────────────────────────────────────
-export type OutcomeType = 'APPROVED' | 'REJECTED' | 'MANUAL_REVIEW'
+export type OutcomeType = 'PAID' | 'PARTIAL' | 'DEFAULT' | 'CANCELLED'
 
 export interface OutcomeRequest {
   outcome: OutcomeType
+  eventDate: string
+  amountReceived?: number
+  daysLate?: number
   notes?: string
 }
 
@@ -85,8 +88,6 @@ export interface PaginatedResponse<T> {
   /** Spring serializa a página atual como 'number', não 'page' */
   number: number
   size: number
-  /** Alias para compatibilidade com dados mock */
-  page?: number
 }
 
 // ─── Health ────────────────────────────────────────────────────────────────────
@@ -99,19 +100,22 @@ export interface HealthResponse {
 
 // ─── Company ───────────────────────────────────────────────────────────────────
 export interface CompanyResponse {
+  id: string
   cnpj: string
   legalName: string
-  tradeName?: string
+  tradeName: string | null
   status: string
-  state: string
-  city: string
-  openingDate?: string
-  mainActivity?: string
+  fit: boolean
+  criticalStatus: boolean
+  statusUpdatedAt: string
+  createdAt: string
 }
 
 // ─── UI helpers ────────────────────────────────────────────────────────────────
 export interface ApiError {
   message: string
   status?: number
-  timestamp?: string
+  errorCode?: string
+  existingAnalysisId?: string
+  errors?: string[]
 }

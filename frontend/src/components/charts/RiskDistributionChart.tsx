@@ -13,7 +13,17 @@ const LEVELS = [
   { key: 'CRITICAL', label: 'Crítico',             color: '#9333ea' },
 ] as const
 
-const CustomTooltip = ({ active, payload }: any) => {
+interface TooltipPayload {
+  name: string
+  value: number
+}
+
+interface DistributionTooltipProps {
+  active?: boolean
+  payload?: TooltipPayload[]
+}
+
+const CustomTooltip = ({ active, payload }: DistributionTooltipProps) => {
   if (!active || !payload?.length) return null
   const { name, value } = payload[0]
   return (

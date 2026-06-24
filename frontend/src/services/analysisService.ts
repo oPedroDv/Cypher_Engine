@@ -6,7 +6,6 @@ import type {
   PaginatedResponse,
   StatisticsResponse,
 } from '../types/analysis'
-import { MOCK_STATISTICS, MOCK_ANALYSIS_LIST } from './mocks'
 
 // ─── Create Analysis ───────────────────────────────────────────────────────────
 export async function createAnalysis(req: AnalysisRequest): Promise<AnalysisResponse> {
@@ -27,12 +26,8 @@ export async function registerOutcome(analysisId: string, req: OutcomeRequest): 
 
 // ─── Statistics — endpoint real ───────────────────────────────────────────────
 export async function getStatistics(): Promise<StatisticsResponse> {
-  try {
-    const { data } = await apiClient.get<StatisticsResponse>('/api/v1/statistics')
-    return data
-  } catch {
-    return MOCK_STATISTICS
-  }
+  const { data } = await apiClient.get<StatisticsResponse>('/api/v1/statistics')
+  return data
 }
 
 // ─── List Analyses — endpoint real ────────────────────────────────────────────
@@ -41,22 +36,6 @@ export async function listAnalyses(params?: {
   size?: number
   riskLevel?: string
 }): Promise<PaginatedResponse<AnalysisResponse>> {
-  try {
-    const { data } = await apiClient.get<PaginatedResponse<AnalysisResponse>>('/api/v1/analyses', { params })
-    return data
-  } catch {
-    // Fallback: retorna dados mock se o backend ainda não estiver disponível
-    const list = MOCK_ANALYSIS_LIST
-    const page = params?.page ?? 0
-    const size = params?.size ?? 10
-    const start = page * size
-    return {
-      content: list.slice(start, start + size),
-      totalElements: list.length,
-      totalPages: Math.ceil(list.length / size),
-      number: page,
-      page,
-      size,
-    }
-  }
+  const { data } = await apiClient.get<PaginatedResponse<AnalysisResponse>>('/api/v1/analyses', { params })
+  return data
 }

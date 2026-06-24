@@ -12,6 +12,19 @@ import { formatScore, formatCurrency, formatPct, formatDate } from '../../lib/ut
 import { cn } from '../../lib/utils'
 import type { OutcomeType } from '../../types/analysis'
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return fallback
+}
+
+function todayLocalDate(): string {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -30,13 +43,18 @@ export default function AnalysisDetailPage() {
   const { data: analysis, isLoading, error } = useAnalysis(id)
   const { mutateAsync: registerOutcome, isPending: registering } = useRegisterOutcome(id ?? '')
   const [outcomeNote, setOutcomeNote] = useState('')
+  const [outcomeDate, setOutcomeDate] = useState(todayLocalDate)
   const [outcomeSuccess, setOutcomeSuccess] = useState<OutcomeType | null>(null)
+  const [outcomeError, setOutcomeError] = useState<string | null>(null)
 
   const handleOutcome = async (outcome: OutcomeType) => {
+    setOutcomeError(null)
     try {
-      await registerOutcome({ outcome, notes: outcomeNote })
+      await registerOutcome({ outcome, eventDate: outcomeDate, notes: outcomeNote || undefined })
       setOutcomeSuccess(outcome)
-    } catch { /* silently ignore */ }
+    } catch (error) {
+      setOutcomeError(errorMessage(error, 'Não foi possível registrar o resultado. Tente novamente.'))
+    }
   }
 
   if (isLoading) return (
@@ -49,7 +67,7 @@ export default function AnalysisDetailPage() {
     <div className="card border-risk-high/30 text-center py-12">
       <AlertTriangle className="w-10 h-10 text-risk-high mx-auto mb-3" />
       <p className="text-white font-semibold">Análise não encontrada</p>
-      <p className="text-gray-500 text-sm mt-1">{(error as any)?.message ?? 'ID inválido ou não existe.'}</p>
+      <p className="text-gray-500 text-sm mt-1">{errorMessage(error, 'ID inválido ou não existe.')}</p>
       <button onClick={() => navigate(-1)} className="btn-secondary mt-4 mx-auto">Voltar</button>
     </div>
   )
@@ -169,17 +187,28 @@ export default function AnalysisDetailPage() {
       <div className="card">
         <div className="flex items-center gap-2 mb-4">
           <ShieldCheck className="w-4 h-4 text-cyan" />
-          <h2 className="text-sm font-semibold text-white">Registrar Decisão</h2>
+          <h2 className="text-sm font-semibold text-white">Registrar Resultado da Operação</h2>
         </div>
         {outcomeSuccess ? (
           <div className="flex items-center gap-3 text-risk-low">
             <Check className="w-5 h-5" />
             <p className="text-sm font-semibold">
-              Decisão registrada: {outcomeSuccess === 'APPROVED' ? 'APROVADO' : outcomeSuccess === 'REJECTED' ? 'REJEITADO' : 'REVISÃO MANUAL'}
+              Resultado registrado: {{ PAID: 'PAGO', PARTIAL: 'PAGO PARCIALMENTE', DEFAULT: 'INADIMPLENTE', CANCELLED: 'CANCELADO' }[outcomeSuccess]}
             </p>
           </div>
         ) : (
           <div className="space-y-3">
+            <div>
+              <label className="input-label">Data do evento</label>
+              <input
+                type="date"
+                className="input"
+                max={todayLocalDate()}
+                value={outcomeDate}
+                onChange={(e) => setOutcomeDate(e.target.value)}
+                required
+              />
+            </div>
             <div>
               <label className="input-label">Observações (opcional)</label>
               <textarea
@@ -189,29 +218,41 @@ export default function AnalysisDetailPage() {
                 onChange={(e) => setOutcomeNote(e.target.value)}
               />
             </div>
+            {outcomeError && (
+              <div role="alert" className="flex items-center gap-2 text-sm text-risk-high">
+                <AlertTriangle className="w-4 h-4 shrink-0" /> {outcomeError}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
-                onClick={() => handleOutcome('APPROVED')}
-                disabled={registering}
+                onClick={() => handleOutcome('PAID')}
+                disabled={registering || !outcomeDate}
                 className="btn-primary flex-1 justify-center"
               >
-                <ShieldCheck className="w-4 h-4" /> Aprovar
+                <ShieldCheck className="w-4 h-4" /> Pago
               </button>
               <button
-                onClick={() => handleOutcome('MANUAL_REVIEW')}
-                disabled={registering}
+                onClick={() => handleOutcome('PARTIAL')}
+                disabled={registering || !outcomeDate}
                 className="btn-secondary flex-1 justify-center"
               >
-                Revisão Manual
+                Pagamento Parcial
               </button>
               <button
-                onClick={() => handleOutcome('REJECTED')}
-                disabled={registering}
+                onClick={() => handleOutcome('DEFAULT')}
+                disabled={registering || !outcomeDate}
                 className="flex-1 justify-center inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm
                            border border-risk-high/40 text-risk-high bg-risk-high/5 hover:bg-risk-high/10
                            transition-all duration-200 disabled:opacity-50"
               >
-                <AlertTriangle className="w-4 h-4" /> Rejeitar
+                <AlertTriangle className="w-4 h-4" /> Inadimplente
+              </button>
+              <button
+                onClick={() => handleOutcome('CANCELLED')}
+                disabled={registering || !outcomeDate}
+                className="btn-secondary flex-1 justify-center"
+              >
+                Cancelado
               </button>
             </div>
           </div>

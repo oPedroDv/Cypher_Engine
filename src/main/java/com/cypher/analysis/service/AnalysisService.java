@@ -22,13 +22,16 @@ import com.cypher.outcome.domain.OutcomeType;
 import com.cypher.outcome.repository.OutcomeHistoryStats;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
+import com.cypher.shared.exception.InvalidFinancialParametersException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
@@ -52,6 +55,7 @@ public class AnalysisService {
     private final CompanyService companyService;
     private final OutcomeRepository outcomeRepository;
     private final SefazClient sefazClient;
+    private final NFeParser nfeParser;
 
     @Transactional
     public AnalysisResponse analyze(AnalysisRequest request, UUID tenantId) {
@@ -67,7 +71,8 @@ public class AnalysisService {
         }
 
         try {
-            NFeData nfeData = NFeParser.parse(request.xmlBase64());
+            NFeData nfeData = nfeParser.parse(request.xmlBase64());
+            validateFinancialParameters(request, nfeData);
 
             validateDuplicity(tenantId, nfeData.getAccessKey());
             SefazClient.ConsultationResult sefazResult = sefazClient.consultStatus(nfeData.getAccessKey());
@@ -90,7 +95,12 @@ public class AnalysisService {
                     .toList();
 
             Invoice invoice = Invoice.from(request.xmlBase64(), tenantId, nfeData);
-            Invoice savedInvoice = invoiceRepository.save(invoice);
+            Invoice savedInvoice;
+            try {
+                savedInvoice = invoiceRepository.saveAndFlush(invoice);
+            } catch (DataIntegrityViolationException ex) {
+                throw new DuplicateInvoiceException(nfeData.getAccessKey(), null);
+            }
 
             xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getAccessKey());
 
@@ -106,7 +116,8 @@ public class AnalysisService {
 
             RiskAnalysis savedAnalysis = riskAnalysisRepository.save(analysis);
 
-            idempotencyService.confirm(tenantId, request.idempotencyKey(), savedAnalysis.getId().toString());
+            idempotencyService.confirmAfterCommit(
+                    tenantId, request.idempotencyKey(), savedAnalysis.getId().toString());
 
             log.info("Análise concluída id={} score={} level={} issuerStatus={} payerStatus={} dataPartial={}",
                     savedAnalysis.getId(),
@@ -119,7 +130,9 @@ public class AnalysisService {
             return AnalysisResponse.from(savedAnalysis, false);
 
         } catch (Exception e) {
-            idempotencyService.release(tenantId, request.idempotencyKey());
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                idempotencyService.release(tenantId, request.idempotencyKey());
+            }
             log.error("Falha na análise key={}: {}", request.idempotencyKey(), e.getMessage());
             throw e;
         }
@@ -178,6 +191,14 @@ public class AnalysisService {
                             throw new DuplicateInvoiceException(accessKey, analysis.getId().toString());
                         })
         );
+    }
+
+    private void validateFinancialParameters(AnalysisRequest request, NFeData nfeData) {
+        BigDecimal requestedAdvance = request.requestedAdvanceValue();
+        if (requestedAdvance != null && requestedAdvance.compareTo(nfeData.getTotalAmount()) > 0) {
+            throw new InvalidFinancialParametersException(
+                    "Valor de antecipação não pode ser maior que o valor total da NF-e");
+        }
     }
 
     private CnpjStatus resolveStatus(String cnpj, UUID tenantId) {

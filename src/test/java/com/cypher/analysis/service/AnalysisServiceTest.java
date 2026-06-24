@@ -14,6 +14,7 @@ import com.cypher.company.service.CompanyService;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidNFeException;
+import com.cypher.shared.exception.InvalidFinancialParametersException;
 import com.cypher.testutil.TestEntityHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -80,8 +82,29 @@ class AnalysisServiceTest {
     @Mock
     private SefazClient sefazClient;
 
+    @Mock
+    private NFeParser nfeParser;
+
     @InjectMocks
     private AnalysisService service;
+
+    @BeforeEach
+    void setUpParser() {
+        lenient().when(nfeParser.parse(XML)).thenReturn(NFeData.builder()
+                .accessKey(CHAVE_NFE)
+                .issuerCnpj("00000000000000")
+                .issuerLegalName("Emitente Teste")
+                .recipientCnpj("11111111111111")
+                .recipientLegalName("Destinatario Teste")
+                .totalAmount(new BigDecimal("10000.00"))
+                .productsAmount(new BigDecimal("10000.00"))
+                .freightAmount(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .issueDate(java.time.LocalDate.of(2026, 6, 1))
+                .dueDate(java.time.LocalDate.of(2026, 7, 1))
+                .status(InvoiceStatus.PENDING)
+                .build());
+    }
 
     @Nested
     @DisplayName("analyze")
@@ -103,7 +126,7 @@ class AnalysisServiceTest {
             when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
                     SefazClient.ConsultationResult.available(InvoiceStatus.AUTHORIZED, "SEFAZ", "Autorizada")
             );
-            when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
+            when(invoiceRepository.saveAndFlush(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
             
             when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
             
@@ -128,7 +151,7 @@ class AnalysisServiceTest {
             assertThat(response.idempotent()).isFalse();
             
             verify(xmlStorageService).store(XML, invoiceId, CHAVE_NFE);
-            verify(idempotencyService).confirm(TENANT_ID, IDEM_KEY, analysisId.toString());
+            verify(idempotencyService).confirmAfterCommit(TENANT_ID, IDEM_KEY, analysisId.toString());
             
             ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
             verify(riskEngine).score(contextCaptor.capture());
@@ -137,7 +160,7 @@ class AnalysisServiceTest {
             assertThat(contextCaptor.getValue().hasUnavailableSource()).isFalse();
 
             ArgumentCaptor<Invoice> invoiceCaptor = ArgumentCaptor.forClass(Invoice.class);
-            verify(invoiceRepository).save(invoiceCaptor.capture());
+            verify(invoiceRepository).saveAndFlush(invoiceCaptor.capture());
             assertThat(invoiceCaptor.getValue().getIssuerCnpj()).isEqualTo("00000000000000");
         }
 
@@ -179,10 +202,45 @@ class AnalysisServiceTest {
         void shouldHandleInvalidNFe() {
             AnalysisRequest request = new AnalysisRequest("invalid-xml", IDEM_KEY, new BigDecimal("1000"), 2.0);
             when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+            when(nfeParser.parse("invalid-xml")).thenThrow(new InvalidNFeException("XML inválido"));
 
             assertThatThrownBy(() -> service.analyze(request, TENANT_ID))
                     .isInstanceOf(InvalidNFeException.class);
 
+            verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
+        }
+
+        @Test
+        @DisplayName("Should reject requested advance above invoice face value")
+        void shouldRejectAdvanceAboveFaceValue() {
+            AnalysisRequest request = new AnalysisRequest(XML, IDEM_KEY, new BigDecimal("10000.01"), 2.0);
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+
+            assertThatThrownBy(() -> service.analyze(request, TENANT_ID))
+                    .isInstanceOf(InvalidFinancialParametersException.class)
+                    .hasMessage("Valor de antecipação não pode ser maior que o valor total da NF-e");
+
+            verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
+            verifyNoInteractions(sefazClient, riskEngine, financialMetricsService, invoiceRepository);
+        }
+
+        @Test
+        @DisplayName("Should map a concurrent unique constraint violation to duplicate without storing XML")
+        void shouldHandleConcurrentDuplicateWithoutOrphanFile() {
+            when(idempotencyService.checkOrReverse(TENANT_ID, IDEM_KEY)).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
+                    SefazClient.ConsultationResult.available(InvoiceStatus.AUTHORIZED, "SEFAZ", "Autorizada"));
+            when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
+            when(riskEngine.score(any())).thenReturn(new RiskEngineService.EngineResult(
+                    0.25, List.of(), "model-v1", false));
+            when(financialMetricsService.calculate(any(), any(), anyDouble(), anyDouble())).thenReturn(createMetrics());
+            when(invoiceRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("unique"));
+
+            assertThatThrownBy(() -> service.analyze(createRequest(), TENANT_ID))
+                    .isInstanceOf(DuplicateInvoiceException.class);
+
+            verifyNoInteractions(xmlStorageService);
             verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
         }
 
@@ -199,7 +257,7 @@ class AnalysisServiceTest {
             when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
                     SefazClient.ConsultationResult.unavailable("SEFAZ", "Fonte indisponível")
             );
-            when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
+            when(invoiceRepository.saveAndFlush(any(Invoice.class))).thenAnswer(inv -> TestEntityHelper.withId(inv.getArgument(0), invoiceId));
             when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
             when(riskEngine.score(any(ScoringContext.class))).thenReturn(new RiskEngineService.EngineResult(
                     0.4, List.of(engineFactor), "model-v1", true));

@@ -4,8 +4,8 @@ import { useHealth, useLatency } from '../../hooks/useHealth'
 import { cn } from '../../lib/utils'
 
 const ENDPOINTS = [
-  { label: 'POST /v1/analyses',           desc: 'Criar análise de risco' },
-  { label: 'GET /v1/analyses/{id}',       desc: 'Buscar análise por ID' },
+  { label: 'POST /api/v1/analyses',       desc: 'Criar análise de risco' },
+  { label: 'GET /api/v1/analyses/{id}',   desc: 'Buscar análise por ID' },
   { label: 'POST /api/v1/analyses/{id}/outcome', desc: 'Registrar decisão' },
   { label: 'GET /api/v1/companies/{cnpj}', desc: 'Perfil de empresa' },
   { label: 'GET /actuator/health',         desc: 'Health check' },

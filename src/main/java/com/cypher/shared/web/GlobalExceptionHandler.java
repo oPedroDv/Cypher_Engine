@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -26,14 +27,16 @@ public class GlobalExceptionHandler {
         if (ex instanceof DuplicateInvoiceException dup) {
             log.warn("NF-e duplicada detectada. Chave: {}. Análise existente: {}", dup.getNfeKey(), dup.getExistingAnalysisId());
 
-            return ResponseEntity.status(ex.getStatus()).body(Map.of(
-                    "timestamp", Instant.now().toString(),
-                    "status", ex.getStatus().value(),
-                    "error_code", ex.getErrorCode(),
-                    "message", ex.getMessage(),
-                    "existing_analysis_id", dup.getExistingAnalysisId(),
-                    "path", request.getRequestURI()
-            ));
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("timestamp", Instant.now().toString());
+            body.put("status", ex.getStatus().value());
+            body.put("error_code", ex.getErrorCode());
+            body.put("message", ex.getMessage());
+            if (dup.getExistingAnalysisId() != null) {
+                body.put("existing_analysis_id", dup.getExistingAnalysisId());
+            }
+            body.put("path", request.getRequestURI());
+            return ResponseEntity.status(ex.getStatus()).body(body);
         }
 
         log.warn("Exceção de negócio: [{}] {}", ex.getErrorCode(), ex.getMessage());

@@ -25,11 +25,22 @@ function StatCard({ label, value, sub, icon: Icon, color = '#00d4ff' }: {
   )
 }
 
+function errorMessage(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+    ? error.message
+    : 'Não foi possível carregar os dados.'
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { data: stats, isLoading: loadingStats, refetch } = useStatistics()
+  const { data: stats, isLoading: loadingStats, error: statsError, refetch: refetchStats } = useStatistics()
   const { data: health } = useHealth()
-  const { data: listData, isLoading: loadingList } = useAnalysisList({ page: 0, size: 5 })
+  const {
+    data: listData,
+    isLoading: loadingList,
+    error: listError,
+    refetch: refetchList,
+  } = useAnalysisList({ page: 0, size: 5 })
 
   const isOnline = health?.status === 'UP'
 
@@ -40,6 +51,19 @@ export default function DashboardPage() {
           <div className="w-8 h-8 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
           <p className="text-sm text-gray-500">Carregando dashboard…</p>
         </div>
+      </div>
+    )
+  }
+
+  if (statsError) {
+    return (
+      <div role="alert" className="card border-risk-high/30 text-center py-12">
+        <AlertTriangle className="w-10 h-10 text-risk-high mx-auto mb-3" />
+        <p className="text-white font-semibold">Falha ao carregar o dashboard</p>
+        <p className="text-gray-500 text-sm mt-1">{errorMessage(statsError)}</p>
+        <button onClick={() => refetchStats()} className="btn-secondary mt-4 mx-auto">
+          <RefreshCw className="w-4 h-4" /> Tentar novamente
+        </button>
       </div>
     )
   }
@@ -57,7 +81,7 @@ export default function DashboardPage() {
             <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-risk-low animate-pulse' : 'bg-risk-high'}`} />
             API {isOnline ? 'Online' : 'Offline'}
           </span>
-          <button onClick={() => refetch()} className="btn-ghost">
+          <button onClick={() => refetchStats()} className="btn-ghost">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={() => navigate('/nova-analise')} className="btn-primary">
@@ -133,7 +157,14 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {loadingList ? (
+        {listError ? (
+          <div role="alert" className="text-center py-8">
+            <p className="text-sm text-risk-high">{errorMessage(listError)}</p>
+            <button onClick={() => refetchList()} className="btn-ghost text-xs mt-2">
+              Tentar novamente
+            </button>
+          </div>
+        ) : loadingList ? (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-2 border-cyan/30 border-t-cyan rounded-full animate-spin" />
           </div>

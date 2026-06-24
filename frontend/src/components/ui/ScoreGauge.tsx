@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { riskColor, scoreToLevel } from './RiskBadge'
+import { riskColor, scoreToLevel } from '../../lib/risk'
 
 interface Props {
   score: number   // 0.0–1.0

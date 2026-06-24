@@ -13,6 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 
@@ -91,6 +93,16 @@ class IdempotencyServiceTest {
                     .isInstanceOf(IdempotencyConflictException.class);
         }
 
+        @Test
+        @DisplayName("Should fail closed when Redis does not confirm the reservation")
+        void shouldThrowConflictWhenReservationResultIsNull() {
+            when(valueOperations.get(REDIS_KEY)).thenReturn(null);
+            when(valueOperations.setIfAbsent(any(), any(), any())).thenReturn(null);
+
+            assertThatThrownBy(() -> service.checkOrReverse(TENANT_ID, KEY))
+                    .isInstanceOf(IdempotencyConflictException.class);
+        }
+
         @ParameterizedTest
         @NullAndEmptySource
         @ValueSource(strings = {" ", "\t"})
@@ -108,7 +120,7 @@ class IdempotencyServiceTest {
         @Test
         @DisplayName("Should store analysisId with 24h TTL")
         void shouldStoreResult() {
-            service.confirm(TENANT_ID, KEY, ANALYSIS_ID);
+            service.confirmAfterCommit(TENANT_ID, KEY, ANALYSIS_ID);
 
             verify(valueOperations).set(eq(REDIS_KEY), eq(ANALYSIS_ID), eq(Duration.ofHours(24)));
         }
@@ -117,7 +129,7 @@ class IdempotencyServiceTest {
         @NullAndEmptySource
         @DisplayName("Should do nothing for invalid keys")
         void shouldIgnoreInvalidKeys(String invalidKey) {
-            service.confirm(TENANT_ID, invalidKey, ANALYSIS_ID);
+            service.confirmAfterCommit(TENANT_ID, invalidKey, ANALYSIS_ID);
             verifyNoInteractions(valueOperations);
         }
     }
@@ -140,6 +152,44 @@ class IdempotencyServiceTest {
         void shouldIgnoreInvalidKeys(String invalidKey) {
             service.release(TENANT_ID, invalidKey);
             verify(redis, never()).delete(anyString());
+        }
+    }
+
+    @Test
+    @DisplayName("Should release a reservation only after transaction rollback")
+    void shouldReleaseReservationAfterRollback() {
+        when(valueOperations.get(REDIS_KEY)).thenReturn(null);
+        when(valueOperations.setIfAbsent(eq(REDIS_KEY), eq("PROCESSING"), any(Duration.class))).thenReturn(true);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.checkOrReverse(TENANT_ID, KEY);
+            verify(redis, never()).delete(anyString());
+
+            TransactionSynchronization synchronization =
+                    TransactionSynchronizationManager.getSynchronizations().getFirst();
+            synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+            verify(redis).delete(REDIS_KEY);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("Should publish the analysis ID only after transaction commit")
+    void shouldConfirmOnlyAfterCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.confirmAfterCommit(TENANT_ID, KEY, ANALYSIS_ID);
+            verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+
+            TransactionSynchronization synchronization =
+                    TransactionSynchronizationManager.getSynchronizations().getFirst();
+            synchronization.afterCommit();
+
+            verify(valueOperations).set(REDIS_KEY, ANALYSIS_ID, Duration.ofHours(24));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
         }
     }
 }

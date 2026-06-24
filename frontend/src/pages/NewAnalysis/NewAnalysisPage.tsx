@@ -2,13 +2,29 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, FileText, Zap, AlertCircle, CheckCircle2, X } from 'lucide-react'
 import { useCreateAnalysis } from '../../hooks/useAnalysis'
-import { generateIdempotencyKey, formatScore, parseNumber } from '../../lib/utils'
+import { generateIdempotencyKey, formatScore, parseCurrency } from '../../lib/utils'
 import { RiskBadge } from '../../components/ui/RiskBadge'
 import { ScoreGauge } from '../../components/ui/ScoreGauge'
 import { cn } from '../../lib/utils'
 import type { AnalysisResponse } from '../../types/analysis'
 
 type Tab = 'upload' | 'paste'
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return fallback
+}
+
+function existingAnalysisId(error: unknown): string | null {
+  if (typeof error === 'object' && error !== null && 'existingAnalysisId' in error
+      && typeof error.existingAnalysisId === 'string') {
+    return error.existingAnalysisId
+  }
+  return null
+}
 
 export default function NewAnalysisPage() {
   const navigate = useNavigate()
@@ -22,6 +38,7 @@ export default function NewAnalysisPage() {
   const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey)
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [duplicateAnalysisId, setDuplicateAnalysisId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
   const handleFile = useCallback((file: File) => {
@@ -39,22 +56,20 @@ export default function NewAnalysisPage() {
   }, [handleFile])
 
   const handleSubmit = async () => {
-    setError(null); setResult(null)
+    setError(null); setDuplicateAnalysisId(null); setResult(null)
     if (!xmlText.trim()) { setError('Informe o XML da NF-e.'); return }
     try {
-      const nextIdempotencyKey = generateIdempotencyKey()
-      setIdempotencyKey(nextIdempotencyKey)
-
       const xmlBase64 = btoa(unescape(encodeURIComponent(xmlText.trim())))
       const res = await mutateAsync({
         xmlBase64,
-        idempotencyKey: nextIdempotencyKey,
-        requestedAdvanceValue: advanceValue ? parseNumber(advanceValue) : undefined,
+        idempotencyKey: idempotencyKey.trim() || undefined,
+        requestedAdvanceValue: advanceValue ? parseCurrency(advanceValue) : undefined,
         requestedMonthlyRate: monthlyRate ? Number(monthlyRate) : undefined,
       })
       setResult(res)
-    } catch (err: any) {
-      setError(err?.message ?? 'Erro ao processar análise.')
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Erro ao processar análise.'))
+      setDuplicateAnalysisId(existingAnalysisId(err))
     }
   }
 
@@ -133,6 +148,14 @@ export default function NewAnalysisPage() {
             <div className="flex items-start gap-3 p-4 bg-risk-high/10 border border-risk-high/30 rounded-xl">
               <AlertCircle className="w-4 h-4 text-risk-high shrink-0 mt-0.5" />
               <p className="text-sm text-risk-high">{error}</p>
+              {duplicateAnalysisId && (
+                <button
+                  onClick={() => navigate(`/analise/${duplicateAnalysisId}`)}
+                  className="text-xs font-semibold text-cyan hover:underline whitespace-nowrap"
+                >
+                  Abrir análise existente
+                </button>
+              )}
               <button onClick={() => setError(null)} className="ml-auto">
                 <X className="w-4 h-4 text-risk-high/60 hover:text-risk-high" />
               </button>
@@ -167,9 +190,10 @@ export default function NewAnalysisPage() {
             <div>
               <label className="input-label">Valor de Antecipação (R$)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="input"
-                placeholder="100000.00"
+                placeholder="100.000,00"
                 value={advanceValue}
                 onChange={(e) => setAdvanceValue(e.target.value)}
               />

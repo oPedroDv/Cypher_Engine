@@ -5,7 +5,17 @@ import type { DailyCount } from '../../types/analysis'
 
 interface Props { data: DailyCount[] }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipPayload {
+  value: number
+}
+
+interface TimelineTooltipProps {
+  active?: boolean
+  payload?: TooltipPayload[]
+  label?: string
+}
+
+const CustomTooltip = ({ active, payload, label }: TimelineTooltipProps) => {
   if (!active || !payload?.length) return null
   return (
     <div className="card-sm text-xs">

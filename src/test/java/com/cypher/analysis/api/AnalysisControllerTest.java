@@ -99,6 +99,21 @@ class AnalysisControllerTest {
     }
 
     @Test
+    void createAnalysisRejectsAdvanceWithMoreThanTwoDecimalPlaces() throws Exception {
+        AnalysisRequest request = new AnalysisRequest(XML, "idem-1", new BigDecimal("799.699"), 3.2);
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors[0]").value(
+                        "requestedAdvanceValue: requestedAdvanceValue deve ter no máximo duas casas decimais"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void createAnalysisMapsDuplicateInvoiceToConflictResponse() throws Exception {
         AnalysisRequest request = new AnalysisRequest(XML, "idem-1", new BigDecimal("8500.00"), 3.2);
         when(service.analyze(any(AnalysisRequest.class), any()))

@@ -108,7 +108,6 @@ flowchart TD
 - Springdoc OpenAPI / Swagger UI
 - Maven
 - Lombok
-- MapStruct
 
 ### Frontend
 - React 19
@@ -120,7 +119,6 @@ flowchart TD
 - Axios
 - Recharts
 - Lucide React
-- date-fns
 - ESLint
 
 ## AI Disclosure
@@ -134,8 +132,6 @@ Frontend contributions are welcome, especially when they improve code clarity, u
 - Mockito
 - Spring Boot Test
 - Spring Security Test
-- Testcontainers
-- ArchUnit
 
 ### Infrastructure / Runtime
 - PostgreSQL 13+

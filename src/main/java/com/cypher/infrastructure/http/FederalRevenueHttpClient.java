@@ -9,6 +9,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -26,11 +27,17 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
     public FederalRevenueHttpClient(
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
-            @Value("${receita-federal.url:https://brasilapi.com.br/api/cnpj/v1}") String baseUrl
+            @Value("${receita-federal.url:https://brasilapi.com.br/api/cnpj/v1}") String baseUrl,
+            @Value("${cypher.http.connect-timeout:3s}") Duration connectTimeout,
+            @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .defaultHeader("Accept", "application/json")
+                .requestFactory(requestFactory)
                 .build();
         this.objectMapper = objectMapper;
     }
