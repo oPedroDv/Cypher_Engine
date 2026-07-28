@@ -277,6 +277,65 @@ class AnalysisServiceTest {
             assertThat(contextCaptor.getValue().sefazStatus()).isEqualTo(com.cypher.analysis.engine.SefazStatus.ERROR);
             assertThat(contextCaptor.getValue().hasUnavailableSource()).isTrue();
         }
+
+        @Test
+        @DisplayName("Should mark analysis as partial when CNPJ status cannot be resolved")
+        void shouldMarkPartialWhenCnpjResolutionFails() {
+            UUID invoiceId = UUID.randomUUID();
+            UUID analysisId = UUID.randomUUID();
+
+            when(idempotencyService.checkOrReverse(eq(TENANT_ID), eq(IDEM_KEY), anyString())).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
+                    SefazClient.ConsultationResult.available(InvoiceStatus.AUTHORIZED, "SEFAZ", "Autorizada"));
+            when(companyService.resolveCompany(any(), eq(TENANT_ID)))
+                    .thenThrow(new IllegalStateException("Receita Federal indisponível"));
+            when(riskEngine.score(any(ScoringContext.class))).thenReturn(new RiskEngineService.EngineResult(
+                    0.4, List.of(), "model-v1", true));
+            when(financialMetricsService.calculate(any(), any(), anyDouble(), anyDouble())).thenReturn(createMetrics());
+            stubPersistence(invoiceId, analysisId);
+
+            service.analyze(createRequest(), TENANT_ID);
+
+            ArgumentCaptor<ScoringContext> contextCaptor = ArgumentCaptor.forClass(ScoringContext.class);
+            verify(riskEngine).score(contextCaptor.capture());
+            assertThat(contextCaptor.getValue().issuerCnpjStatus()).isEqualTo(CnpjStatus.UNKNOWN);
+            assertThat(contextCaptor.getValue().hasUnavailableSource()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Should propagate the original failure even when cleanup fails")
+        void shouldPropagateOriginalFailureWhenCleanupFails() {
+            when(idempotencyService.checkOrReverse(eq(TENANT_ID), eq(IDEM_KEY), anyString())).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE))
+                    .thenThrow(new IllegalStateException("SEFAZ indisponível"));
+            doThrow(new IllegalStateException("Redis indisponível"))
+                    .when(idempotencyService).release(TENANT_ID, IDEM_KEY);
+
+            assertThatThrownBy(() -> service.analyze(createRequest(), TENANT_ID))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("SEFAZ indisponível")
+                    .satisfies(thrown -> assertThat(thrown.getSuppressed())
+                            .anySatisfy(suppressed -> assertThat(suppressed).hasMessage("Redis indisponível")));
+
+            verify(auditService).recordFailure(eq(AuditAction.ANALYSIS_FAILED), eq("Invoice"), eq(CHAVE_NFE),
+                    anyString(), eq("IllegalStateException"), anyString(), eq(TENANT_ID));
+        }
+    }
+
+    @Nested
+    @DisplayName("listAnalyses")
+    class ListAnalyses {
+
+        @Test
+        @DisplayName("Should reject an unknown risk level with a descriptive message")
+        void shouldRejectUnknownRiskLevel() {
+            assertThatThrownBy(() -> service.listAnalyses(TENANT_ID, 0, 20, "ultra-high"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("riskLevel inválido")
+                    .hasMessageContaining("ultra-high");
+        }
     }
 
     @Nested

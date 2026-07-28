@@ -3,6 +3,8 @@ package com.cypher.analysis.domain;
 import com.cypher.shared.exception.InvalidNFeException;
 import com.cypher.shared.util.AccessKeyValidator;
 import com.cypher.shared.util.CnpjValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -39,6 +41,7 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,6 +49,8 @@ import java.util.Optional;
 
 @Component
 public class NFeParser {
+
+    private static final Logger log = LoggerFactory.getLogger(NFeParser.class);
 
     private static final int MAX_XML_BYTES = 1024 * 1024;
     private static final int MAX_BASE64_BYTES = ((MAX_XML_BYTES + 2) / 3) * 4;
@@ -275,7 +280,8 @@ public class NFeParser {
             return Optional.of(dateStr.contains("T")
                     ? LocalDate.parse(dateStr, ISO_OFFSET_DATE_TIME)
                     : LocalDate.parse(dateStr, ISO_DATE));
-        } catch (Exception e) {
+        } catch (DateTimeParseException e) {
+            log.warn("Data da NF-e ignorada por formato inválido: '{}'", dateStr, e);
             return Optional.empty();
         }
     }

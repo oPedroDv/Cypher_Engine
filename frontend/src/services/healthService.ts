@@ -5,7 +5,8 @@ export async function getHealth(): Promise<HealthResponse> {
   try {
     const { data } = await apiClient.get<HealthResponse>('/actuator/health')
     return data
-  } catch {
+  } catch (error) {
+    console.warn('Health check failed; reporting backend as DOWN.', error)
     return { status: 'DOWN' }
   }
 }
@@ -15,7 +16,8 @@ export async function measureLatency(): Promise<number> {
   try {
     await apiClient.get('/actuator/health')
     return Math.round(performance.now() - start)
-  } catch {
+  } catch (error) {
+    console.warn('Latency probe failed; reporting -1.', error)
     return -1
   }
 }
