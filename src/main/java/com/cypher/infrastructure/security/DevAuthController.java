@@ -41,7 +41,7 @@ public class DevAuthController {
                 .audience().add(jwtAudience).and()
                 .claim("tenant_id", tenantId.toString())
 
-                .claim("scope", "analysis:read analysis:write outcome:write")
+                .claim("scope", "analysis:read analysis:write outcome:write company:read company:write statistics:read")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 86400000))
                 .signWith(key)

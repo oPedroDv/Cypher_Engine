@@ -45,10 +45,21 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-    private static final String[] PUBLIC_ENDPOINTS = {
+    private static final String[] ALWAYS_PUBLIC_ENDPOINTS = {
             "/actuator/health",
             "/actuator/info",
-            "/dev/token",
+            "/dev/token"
+    };
+
+    /**
+     * Achado 4.3 da auditoria: /v3/api-docs/** e /swagger-ui/** ficavam
+     * públicos em qualquer ambiente, sem gate de profile — reconhecimento
+     * ofensivo trivial em produção. Agora só ficam públicos quando
+     * explicitamente habilitados (fail-closed por padrão); em prod, sem essa
+     * flag, os endpoints de doc exigem a mesma autenticação de qualquer
+     * outro endpoint.
+     */
+    private static final String[] SWAGGER_ENDPOINTS = {
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
@@ -66,19 +77,31 @@ public class SecurityConfig {
     @Value("${cypher.security.cors.allowed-origins:http://localhost:5173}")
     private String corsAllowedOrigins;
 
+    @Value("${cypher.security.public-docs.enabled:false}")
+    private boolean publicDocsEnabled;
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             ApiKeyAuthFilter apiKeyAuthFilter,
             com.cypher.infrastructure.persistence.TenantFilterConfig.TenantFilter tenantFilter
     ) throws Exception{
+        if (publicDocsEnabled) {
+            log.warn("Swagger/OpenAPI públicos habilitados (cypher.security.public-docs.enabled=true). " +
+                    "Não usar em produção.");
+        }
+
         http
                 .cors(withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(ALWAYS_PUBLIC_ENDPOINTS).permitAll();
+                    if (publicDocsEnabled) {
+                        auth.requestMatchers(SWAGGER_ENDPOINTS).permitAll();
+                    }
+                    auth.anyRequest().authenticated();
+                })
                 .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(tenantFilter, BearerTokenAuthenticationFilter.class)
                 .exceptionHandling(exceptions -> exceptions.accessDeniedHandler((request, response, denied) -> {

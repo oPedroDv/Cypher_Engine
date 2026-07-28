@@ -3,6 +3,7 @@ package com.cypher.analysis.api;
 import com.cypher.analysis.api.dto.StatisticsResponse;
 import com.cypher.analysis.service.AnalysisService;
 import com.cypher.infrastructure.persistence.TenantContext;
+import com.cypher.infrastructure.security.RequiresScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ public class StatisticsController {
 
     private final AnalysisService service;
 
+    @RequiresScope("statistics:read")
     @GetMapping
     public ResponseEntity<StatisticsResponse> getStatistics() {
         log.debug("Consultando estatísticas de análises");
