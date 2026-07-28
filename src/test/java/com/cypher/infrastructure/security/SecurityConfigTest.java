@@ -62,10 +62,13 @@ class SecurityConfigTest {
     private ApiKeyRepository apiKeyRepository;
 
     @Test
-    void publicApiDocsEndpointDoesNotRequireAuthentication() throws Exception {
+    void apiDocsEndpointRequiresAuthenticationByDefault() throws Exception {
+        // Achado 4.3 da auditoria: sem cypher.security.public-docs.enabled=true,
+        // /v3/api-docs e /swagger-ui devem exigir autenticação como qualquer
+        // outro endpoint (fail-closed). Ver SecurityConfigPublicDocsEnabledTest
+        // para o comportamento com a flag ligada.
         mockMvc.perform(get("/v3/api-docs/probe"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("public"));
+                .andExpect(status().isUnauthorized());
 
         verify(apiKeyRepository, never()).findByKeyHashAndActiveTrue(anyString());
     }
@@ -99,6 +102,36 @@ class SecurityConfigTest {
                                 new org.springframework.security.core.authority.SimpleGrantedAuthority(
                                         "SCOPE_analysis:write"))
                                 .jwt(token -> token.claim("tenant_id", TENANT_ID.toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void analysisWriteRejectsApiKeyWithoutRequiredScope() throws Exception {
+        // Achado 4.1: antes desta correção, toda API key recebia ROLE_API_CLIENT
+        // e passava em QUALQUER @RequiresScope. Uma key sem nenhum scope
+        // configurado agora deve ser negada.
+        ApiKey apiKey = new ApiKey(TENANT_ID, ApiKeyAuthProvider.hashKey(RAW_API_KEY), "test-key");
+        when(apiKeyRepository.findByKeyHashAndActiveTrue(ApiKeyAuthProvider.hashKey(RAW_API_KEY)))
+                .thenReturn(Optional.of(apiKey));
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .header(ApiKeyAuthFilter.API_KEY_HEADER, RAW_API_KEY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("access_denied"));
+    }
+
+    @Test
+    void analysisWriteAcceptsApiKeyWithRequiredScope() throws Exception {
+        ApiKey apiKey = new ApiKey(
+                TENANT_ID,
+                ApiKeyAuthProvider.hashKey(RAW_API_KEY),
+                "test-key",
+                java.util.Set.of("analysis:write"));
+        when(apiKeyRepository.findByKeyHashAndActiveTrue(ApiKeyAuthProvider.hashKey(RAW_API_KEY)))
+                .thenReturn(Optional.of(apiKey));
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .header(ApiKeyAuthFilter.API_KEY_HEADER, RAW_API_KEY))
                 .andExpect(status().isOk());
     }
 

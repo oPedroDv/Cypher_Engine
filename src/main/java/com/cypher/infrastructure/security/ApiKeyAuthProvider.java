@@ -32,8 +32,9 @@ public class ApiKeyAuthProvider implements AuthenticationProvider {
                     return new BadCredentialsException("API key inválida ou revogada");
                 });
 
-        log.debug("API key autenticada. tenantId={} name={}", apiKey.getTenantId(), apiKey.getName());
-        return new ApiKeyAuthentication(rawKey, apiKey.getTenantId());
+        log.debug("API key autenticada. tenantId={} name={} scopes={}",
+                apiKey.getTenantId(), apiKey.getName(), apiKey.getScopeSet());
+        return new ApiKeyAuthentication(rawKey, apiKey.getTenantId(), apiKey.getScopeSet());
     }
 
     @Override
