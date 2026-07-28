@@ -23,6 +23,7 @@ import com.cypher.outcome.repository.OutcomeHistoryStats;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidFinancialParametersException;
+import com.cypher.shared.exception.InvalidRequestException;
 import com.cypher.audit.domain.AuditAction;
 import com.cypher.audit.service.AuditService;
 import com.cypher.infrastructure.web.CorrelationContext;
@@ -46,6 +47,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AnalysisService {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final InvoiceRepository invoiceRepository;
     private final RiskAnalysisRepository riskAnalysisRepository;
@@ -157,15 +160,29 @@ public class AnalysisService {
     @Transactional(readOnly = true)
     public Page<AnalysisResponse> listAnalyses(UUID tenantId, int page, int size, String riskLevel) {
         requireTenant(tenantId);
+        if (page < 0) {
+            throw new InvalidRequestException("page deve ser maior ou igual a zero");
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new InvalidRequestException("size deve estar entre 1 e " + MAX_PAGE_SIZE);
+        }
         Pageable pageable = PageRequest.of(page, size);
         Page<RiskAnalysis> result;
         if (riskLevel != null && !riskLevel.isBlank()) {
-            RiskLevel level = RiskLevel.valueOf(riskLevel.toUpperCase());
+            RiskLevel level = parseRiskLevel(riskLevel);
             result = riskAnalysisRepository.findByTenantIdAndRiskLevelOrderByCreatedAtDesc(tenantId, level, pageable);
         } else {
             result = riskAnalysisRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable);
         }
         return result.map(a -> AnalysisResponse.from(a, false));
+    }
+
+    private RiskLevel parseRiskLevel(String riskLevel) {
+        try {
+            return RiskLevel.valueOf(riskLevel.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidRequestException("riskLevel inválido: " + riskLevel);
+        }
     }
 
     @Transactional(readOnly = true)
