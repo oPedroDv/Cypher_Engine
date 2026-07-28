@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Auditoria e Plano de Correção — Cypher Engine</title>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #111; max-width: 920px; margin: 40px auto; padding: 0 24px; }
+    h1 { font-size: 22pt; border-bottom: 2px solid #222; padding-bottom: 8px; }
+    h2 { font-size: 16pt; margin-top: 28px; color: #1a1a1a; border-bottom: 1px solid #ccc; padding-bottom: 4px; page-break-before: auto; }
+    h3 { font-size: 13pt; margin-top: 20px; }
+    h4 { font-size: 11.5pt; margin-top: 16px; margin-bottom: 6px; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; }
+    th, td { border: 1px solid #888; padding: 6px 10px; text-align: left; vertical-align: top; }
+    th { background: #eee; }
+    .critico { color: #8b0000; font-weight: bold; }
+    .alto { color: #b45309; font-weight: bold; }
+    .medio { color: #a16207; font-weight: bold; }
+    .baixo { color: #374151; font-weight: bold; }
+    .meta { color: #555; font-size: 10pt; }
+    ul, ol { margin-top: 4px; }
+    li { margin-bottom: 4px; }
+    code { font-family: Consolas, monospace; font-size: 10pt; background: #f3f4f6; padding: 1px 4px; }
+    pre { background: #f3f4f6; padding: 10px; overflow-x: auto; font-size: 9.5pt; }
+    .finding { margin-bottom: 22px; page-break-inside: avoid; }
+    .label { font-weight: bold; }
+    .wave { background: #f8fafc; border-left: 4px solid #334155; padding: 12px 16px; margin: 16px 0 24px; }
+    .toc a { text-decoration: none; color: #1d4ed8; }
+    hr { border: none; border-top: 1px solid #ccc; margin: 28px 0; }
+  </style>
+</head>
+<body>
+
+<h1>Auditoria Completa e Plano de Correção — Cypher Engine</h1>
+
+<p class="meta">
+  <strong>Projeto:</strong> Cypher Engine (core)<br/>
+  <strong>Escopo:</strong> Backend Java 21 / Spring Boot, Frontend React / TypeScript, PostgreSQL / Flyway, Redis, Infra<br/>
+  <strong>Data da auditoria:</strong> 16 de julho de 2026<br/>
+  <strong>Tipo:</strong> Auditoria somente leitura + plano de execução de correção (0 features novas)<br/>
+  <strong>Achados:</strong> 48 (4 críticos, 18 altos, 16 médios, 10 baixos)
+</p>
+
+<h2>Sumário</h2>
+<ol class="toc">
+  <li>Plano de Correção (ondas 0–6)</li>
+  <li>Resumo Geral da Auditoria</li>
+  <li>Notas do Projeto</li>
+  <li>Problemas CRÍTICOS</li>
+  <li>Problemas ALTOS</li>
+  <li>Problemas MÉDIOS</li>
+  <li>Problemas BAIXOS</li>
+  <li>Pontos positivos</li>
+</ol>
+
+<hr/>
+
+<!-- ===================== PLANO DE CORREÇÃO ===================== -->
+
+<h2>1. Plano de Correção — Cypher Engine</h2>
+
+<p>
+  Baseado na auditoria de 16/07/2026 — <strong>48 achados</strong>, <strong>0 features novas</strong>, apenas correção.
+</p>
+
+<p>
+  <strong>Regra do plano:</strong> priorização por severidade, mas agrupada por arquivo/componente sempre que possível,
+  para reduzir número de PRs e evitar retrabalho (ex.: <code>SecurityConfig.java</code> é tocado em 3 achados diferentes — resolve tudo numa PR só).
+</p>
+
+<p class="meta">Legenda de esforço: <strong>S</strong> = pequeno (&lt; meio dia), <strong>M</strong> = médio (1–2 dias), <strong>L</strong> = grande (3+ dias).</p>
+
+<!-- Onda 0 -->
+<div class="wave">
+  <h3>Onda 0 — Bloqueadores de produção (fazer antes de qualquer deploy)</h3>
+  <p>Esses itens são CRÍTICOS. Nenhum outro item importa se estes não forem resolvidos.</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>1</td><td>Credenciais de banco hardcoded como default</td><td><code>application.properties</code></td><td>S</td></tr>
+    <tr><td>2</td><td>Credenciais Redis vazias por default <em>(agrupado aqui por ser o mesmo tipo de risco)</em></td><td><code>application.properties</code></td><td>S</td></tr>
+    <tr><td>3</td><td>Swagger/OpenAPI públicos em produção</td><td><code>SecurityConfig.java</code></td><td>S</td></tr>
+    <tr><td>4</td><td>API Key ignora todos os scopes de autorização</td><td><code>RequiresScope.java</code>, <code>ApiKeyAuthentication.java</code></td><td>M</td></tr>
+    <tr><td>5</td><td>Endpoints de company/statistics sem controle de scope <em>(mesma correção de scopes, mesma PR)</em></td><td><code>CompanyController.java</code>, <code>StatisticsController.java</code></td><td>S</td></tr>
+  </table>
+  <p><strong>Por que nessa ordem:</strong> os itens 1–3 são configuração pura (sem risco de quebrar lógica de negócio) e travam o boot inseguro. Os itens 4–5 são a mesma frente de trabalho (sistema de scopes) — resolver juntos evita implementar scope granular duas vezes.</p>
+  <p><strong>Entregável da onda:</strong> nenhuma credencial default, Swagger fechado fora de <code>dev</code>, scopes reais persistidos e aplicados em toda API key e em company/statistics.</p>
+</div>
+
+<!-- Onda 1 -->
+<div class="wave">
+  <h3>Onda 1 — Autorização e segurança residual (ALTO, ligado à Onda 0)</h3>
+  <p>Continuação natural da onda anterior — mesma área de código (segurança/autz), então faz sentido emendar.</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>6</td><td>IDOR / oráculo cross-tenant em outcome</td><td><code>OutcomeService.java</code>, <code>OutcomeController.java</code></td><td>S</td></tr>
+    <tr><td>7</td><td>GET de company com side effects</td><td><code>CompanyController.java</code>, <code>CompanyService.java</code></td><td>M</td></tr>
+    <tr><td>8</td><td>Revogação de certificado NF-e desabilitada</td><td><code>NFeParser.java</code></td><td>M</td></tr>
+    <tr><td>9</td><td>Actuator metrics/flyway para qualquer autenticado</td><td><code>application.properties</code>, <code>SecurityConfig.java</code></td><td>S</td></tr>
+    <tr><td>10</td><td>CORS permite X-Tenant-Id sem uso no server (esclarecer/remover)</td><td><code>SecurityConfig.java</code></td><td>S</td></tr>
+  </table>
+  <p><strong>Entregável da onda:</strong> sem enumeração cross-tenant, GET sem efeito colateral, certificado com validação de revogação, actuator restrito a ADMIN.</p>
+</div>
+
+<!-- Onda 2 -->
+<div class="wave">
+  <h3>Onda 2 — Consistência de dados e idempotência (ALTO)</h3>
+  <p>Bugs que já causam comportamento errado hoje — não são teóricos, já quebram o fluxo principal (análise de NF-e).</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>11</td><td>Idempotência inconsistente após persistência</td><td><code>AnalysisService.java</code>, <code>InvoiceWriteService.java</code>, <code>IdempotencyService.java</code></td><td>M</td></tr>
+    <tr><td>12</td><td>DuplicateInvoice na race perde existing_analysis_id <em>(mesma área do item 11)</em></td><td><code>InvoiceWriteService.java</code></td><td>S</td></tr>
+    <tr><td>13</td><td>Destinatário CPF quebra resolução de company e enviesa score</td><td><code>NFeParser.java</code>, <code>CompanyService.java</code>, <code>V4__companies.sql</code></td><td>M</td></tr>
+    <tr><td>14</td><td>Outcome duplicado retorna 204 silencioso</td><td><code>OutcomeService.java</code>, <code>AnalysisDetailPage.tsx</code></td><td>S</td></tr>
+    <tr><td>15</td><td>Race em registro de outcome <em>(mesmo arquivo do item 14, mesma PR)</em></td><td><code>OutcomeService.java</code></td><td>S</td></tr>
+    <tr><td>16</td><td>Race em createCompany</td><td><code>CompanyService.java</code></td><td>S</td></tr>
+    <tr><td>17</td><td>riskLevel inválido → 500</td><td><code>AnalysisService.java</code></td><td>S</td></tr>
+    <tr><td>18</td><td>requestedMonthlyRate como double primitivo</td><td><code>AnalysisRequest.java</code></td><td>S</td></tr>
+  </table>
+  <p><strong>Entregável da onda:</strong> cliente idempotente nunca recebe erro espúrio, NF-e B2C (CPF) não quebra scoring, races tratadas como no-op ou 409 explícito, inputs inválidos retornam 400 em vez de 500.</p>
+</div>
+
+<!-- Onda 3 -->
+<div class="wave">
+  <h3>Onda 3 — Performance e escalabilidade (ALTO)</h3>
+  <p>Sem isso, a aplicação não aguenta “milhares de usuários” — é o gargalo real de escala.</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>19</td><td>page/size sem limite superior</td><td><code>AnalysisListController.java</code></td><td>S</td></tr>
+    <tr><td>20</td><td>Sem rate limiting</td><td>Controllers de análise/company</td><td>M</td></tr>
+    <tr><td>21</td><td>N+1 em listagem de análises</td><td><code>AnalysisResponse.java</code>, <code>RiskAnalysis.java</code>, <code>AnalysisService.java</code></td><td>S</td></tr>
+    <tr><td>22</td><td>Queries de histórico varrem o tenant inteiro</td><td><code>InvoiceRepository.java</code>, <code>OutcomeRepository.java</code></td><td>M</td></tr>
+    <tr><td>23</td><td>Estatísticas com múltiplas queries por request</td><td><code>AnalysisService.java</code></td><td>M</td></tr>
+    <tr><td>24</td><td>Open Session In View implícito <em>(relacionado ao N+1)</em></td><td><code>application.properties</code></td><td>M</td></tr>
+    <tr><td>25</td><td>InvoiceWriteService timeout 5s</td><td><code>InvoiceWriteService.java</code></td><td>S</td></tr>
+  </table>
+  <p><strong>Ordem interna sugerida:</strong> 19 e 20 primeiro (contêm o dano, são triviais). Depois 21+24 juntos (mesma causa raiz: fetch strategy). Depois 22 e 23 (otimização de query).</p>
+  <p><strong>Entregável da onda:</strong> listagens sem N+1, histórico filtra por CNPJ relevante, stats numa query só, endpoints caros com rate limit e paginação limitada.</p>
+</div>
+
+<!-- Onda 4 -->
+<div class="wave">
+  <h3>Onda 4 — Infraestrutura de entrega (ALTO)</h3>
+  <p>Não é bug de lógica, é ausência de rede de segurança para todas as ondas anteriores.</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>26</td><td>Ausência total de CI/CD</td><td><code>.github/workflows/</code> (criar)</td><td>M</td></tr>
+    <tr><td>27</td><td>Sem Docker / Compose</td><td>raiz do projeto (criar)</td><td>M</td></tr>
+    <tr><td>28</td><td>Frontend sem autenticação em produção</td><td><code>main.tsx</code>, <code>authService.ts</code>, <code>App.tsx</code></td><td>L</td></tr>
+  </table>
+  <p><strong>Por que por último entre os ALTOS:</strong> primeiro travar buracos de segurança/dados (senão CI só valida código inseguro), depois blindar a esteira de entrega. Item 28 é o maior esforço do backlog (L) — planeje sprint dedicada.</p>
+  <p><strong>Entregável da onda:</strong> pipeline bloqueia merge com teste quebrado, ambiente sobe com <code>docker compose up</code>, frontend com login real e route guards.</p>
+</div>
+
+<!-- Onda 5 -->
+<div class="wave">
+  <h3>Onda 5 — Médios (arquitetura e consistência menor)</h3>
+  <p>Não bloqueiam produção, mas idealmente entram antes do lançamento em escala.</p>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Arquivo</th><th>Esforço</th></tr>
+    <tr><td>29</td><td>RequestSizeLimitFilter bufferiza body inteiro</td><td><code>RequestSizeLimitFilter.java</code></td><td>M</td></tr>
+    <tr><td>30</td><td>Flyway baseline-on-migrate=true</td><td><code>application.properties</code></td><td>S</td></tr>
+    <tr><td>31</td><td>TTL PROCESSING 2 min vs análise longa</td><td><code>IdempotencyService.java</code></td><td>S</td></tr>
+    <tr><td>32</td><td>JWT HMAC simétrico compartilhado</td><td><code>SecurityConfig.java</code></td><td>L (avaliar se necessário agora)</td></tr>
+    <tr><td>33</td><td>XML armazenado em base64 no DB + disco</td><td><code>Invoice.from</code>, <code>AnalysisService</code>, <code>XmlStorageService</code></td><td>M</td></tr>
+    <tr><td>34</td><td>Código morto / APIs não usadas (6 itens)</td><td>vários — ver auditoria §6.5</td><td>S–M</td></tr>
+    <tr><td>35</td><td>Histórico: busca só na página atual</td><td><code>HistoryPage.tsx</code></td><td>M</td></tr>
+    <tr><td>36</td><td>Export CSV só da página corrente</td><td><code>HistoryPage.tsx</code></td><td>S</td></tr>
+    <tr><td>37</td><td>Observabilidade falsa “matriz de endpoints”</td><td><code>ObservabilityPage.tsx</code></td><td>S</td></tr>
+    <tr><td>38</td><td>App React sem lazy loading</td><td><code>App.tsx</code></td><td>S</td></tr>
+  </table>
+  <p><strong>Nota:</strong> item 32 (JWT assimétrico) só vale a pena se o roadmap prevê multi-serviço; se continua monolito, pode ir para “não fazer agora” — não é bug.</p>
+</div>
+
+<!-- Onda 6 -->
+<div class="wave">
+  <h3>Onda 6 — Baixos (limpeza, intercalar nos gaps de sprint)</h3>
+  <p>Sem dependências entre si, bons para intercalar entre as ondas acima quando sobrar tempo de sprint.</p>
+  <table>
+    <tr><th>#</th><th>Item</th></tr>
+    <tr><td>39</td><td>Cast desnecessário no logger (<code>GlobalExceptionHandler.java</code>)</td></tr>
+    <tr><td>40</td><td>Índice redundante em <code>api_keys</code></td></tr>
+    <tr><td>41</td><td>Contact email genérico no OpenAPI</td></tr>
+    <tr><td>42</td><td>Emojis na UI de latência</td></tr>
+    <tr><td>43</td><td>CacheConfig com nome enganoso</td></tr>
+    <tr><td>44</td><td>CompanyResponse órfão no frontend</td></tr>
+    <tr><td>45</td><td>acceptLoginToken / logout sem UI</td></tr>
+    <tr><td>46</td><td>Comentários JSX vazios</td></tr>
+    <tr><td>47</td><td>Sobreposição conceitual DuplicateInvoiceRule vs validação no service</td></tr>
+    <tr><td>48</td><td>Hikari pool fixo em 10 (revisar sob carga real, não é fix isolado)</td></tr>
+  </table>
+</div>
+
+<h3>Resumo executivo do plano</h3>
+<table>
+  <tr><th>Onda</th><th>Foco</th><th>Itens</th><th>Esforço agregado aproximado</th></tr>
+  <tr><td>0</td><td>Bloqueadores de produção</td><td>5</td><td>~3–4 dias</td></tr>
+  <tr><td>1</td><td>Segurança residual</td><td>5</td><td>~3–4 dias</td></tr>
+  <tr><td>2</td><td>Consistência de dados</td><td>8</td><td>~5–6 dias</td></tr>
+  <tr><td>3</td><td>Performance/escala</td><td>7</td><td>~5–6 dias</td></tr>
+  <tr><td>4</td><td>Infra de entrega</td><td>3</td><td>~5–8 dias</td></tr>
+  <tr><td>5</td><td>Médios</td><td>10</td><td>~5–7 dias</td></tr>
+  <tr><td>6</td><td>Baixos</td><td>10</td><td>~1–2 dias (intercalável)</td></tr>
+</table>
+
+<h3>Sugestão de sequência de sprints</h3>
+<ol>
+  <li><strong>Sprint 1:</strong> Onda 0 + Onda 1 → sistema deixa de ter furos críticos de segurança.</li>
+  <li><strong>Sprint 2:</strong> Onda 2 → dados param de se corromper/comportar errado sob concorrência.</li>
+  <li><strong>Sprint 3:</strong> Onda 3 → aplicação aguenta carga real.</li>
+  <li><strong>Sprint 4:</strong> Onda 4 → rede de segurança de entrega (CI, Docker, auth frontend).</li>
+  <li><strong>Sprint 5+:</strong> Onda 5, intercalando Onda 6 nos gaps.</li>
+</ol>
+
+<p>
+  <strong>Marco:</strong> depois da Onda 0, já dá para considerar um “piloto controlado” mais seguro.
+  Produção real para milhares de usuários só depois das Ondas 0–4.
+</p>
+
+<hr/>
+
+<!-- ===================== AUDITORIA ===================== -->
+
+<h2>2. Resumo Geral da Auditoria</h2>
+
+<table>
+  <tr><th>Severidade</th><th>Quantidade</th><th>Critério</th></tr>
+  <tr><td class="critico">CRÍTICO</td><td>4</td><td>Perda de dados, falha de segurança, corrupção, vazamento ou quebra da aplicação</td></tr>
+  <tr><td class="alto">ALTO</td><td>18</td><td>Bugs frequentes, inconsistência, baixa performance, abuso autenticado</td></tr>
+  <tr><td class="medio">MÉDIO</td><td>16</td><td>Problemas arquiteturais ou técnicos relevantes</td></tr>
+  <tr><td class="baixo">BAIXO</td><td>10</td><td>Legibilidade, organização e manutenção</td></tr>
+  <tr><th>Total</th><th>48</th><th></th></tr>
+</table>
+
+<h2>3. Notas do Projeto</h2>
+
+<table>
+  <tr><th>Dimensão</th><th>Nota</th><th>Comentário</th></tr>
+  <tr><td>Arquitetura</td><td>7/10</td><td>Domínios claros; falta schedulers, storage real e boundaries de auth</td></tr>
+  <tr><td>Segurança</td><td>5/10</td><td>Boa base JWT/tenant/XXE; scopes furados, Swagger público, defaults de credencial</td></tr>
+  <tr><td>Performance</td><td>5/10</td><td>N+1, full-scan de histórico, page size livre</td></tr>
+  <tr><td>Legibilidade</td><td>7.5/10</td><td>Código em geral claro e testado nas áreas críticas</td></tr>
+  <tr><td>Escalabilidade</td><td>4.5/10</td><td>Sem rate limit; queries O(tenant); storage local /tmp</td></tr>
+  <tr><td>Organização</td><td>7.5/10</td><td>Bounded contexts bons; dead code e package vazio</td></tr>
+  <tr><td>Manutenibilidade</td><td>7/10</td><td>Testes ajudam; ausência de CI prejudica</td></tr>
+  <tr><td>Qualidade do Frontend</td><td>5.5/10</td><td>React Query ok; auth/prod e busca incompletos</td></tr>
+  <tr><td>Qualidade do Backend</td><td>6.5/10</td><td>Motor de risco sólido; authz e concorrência fracos</td></tr>
+  <tr><td><strong>Qualidade Geral</strong></td><td><strong>6/10</strong></td><td>Piloto controlado ok; não pronto para milhares de usuários sem corrigir CRÍTICOS/ALTOS</td></tr>
+</table>
+
+<hr/>
+
+<h2>4. Problemas CRÍTICOS</h2>
+
+<div class="finding">
+  <h3>4.1 API Key ignora todos os scopes de autorização</h3>
+  <p><span class="label">Severidade:</span> <span class="critico">CRÍTICO</span> · Plano: Onda 0 #4</p>
+  <p><span class="label">Arquivo:</span> <code>RequiresScope.java</code> (L13); <code>ApiKeyAuthentication.java</code> (L21–22)</p>
+  <p><span class="label">Descrição:</span> <code>@RequiresScope</code> autoriza <code>SCOPE_{value}</code> <strong>ou</strong> <code>ROLE_API_CLIENT</code>. Toda API key recebe <code>ROLE_API_CLIENT</code> sem scopes granulares.</p>
+  <p><span class="label">Impacto:</span> Comprometimento total do tenant via uma única key.</p>
+  <p><span class="label">Corrigir:</span> Persistir scopes em <code>api_keys</code>; remover bypass <code>ROLE_API_CLIENT</code>.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>4.2 Endpoints de company/statistics sem controle de scope</h3>
+  <p><span class="label">Severidade:</span> <span class="critico">CRÍTICO</span> · Plano: Onda 0 #5</p>
+  <p><span class="label">Arquivo:</span> <code>CompanyController.java</code> (L22–50); <code>StatisticsController.java</code> (L21–24)</p>
+  <p><span class="label">Descrição:</span> Só exigem autenticação; JWT sem scopes adequados ainda acessa perfil, refresh e estatísticas.</p>
+  <p><span class="label">Impacto:</span> Escalação de privilégio dentro do tenant; abuso de cotas externas.</p>
+  <p><span class="label">Corrigir:</span> Anotar com <code>@RequiresScope</code>; rate-limit em refresh.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>4.3 Swagger / OpenAPI públicos em produção</h3>
+  <p><span class="label">Severidade:</span> <span class="critico">CRÍTICO</span> · Plano: Onda 0 #3</p>
+  <p><span class="label">Arquivo:</span> <code>SecurityConfig.java</code> (L48–55)</p>
+  <p><span class="label">Descrição:</span> <code>/v3/api-docs/**</code> e <code>/swagger-ui/**</code> em <code>PUBLIC_ENDPOINTS</code> sem perfil <code>dev</code>.</p>
+  <p><span class="label">Impacto:</span> Reconhecimento ofensivo; documentação pública da superfície da API.</p>
+  <p><span class="label">Corrigir:</span> Restringir a <code>dev</code>/<code>local</code> ou exigir autenticação.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>4.4 Credenciais de banco hardcoded como default</h3>
+  <p><span class="label">Severidade:</span> <span class="critico">CRÍTICO</span> · Plano: Onda 0 #1</p>
+  <p><span class="label">Arquivo:</span> <code>application.properties</code> (L1–3)</p>
+  <p><span class="label">Descrição:</span> <code>username=postgres</code> / <code>password=postgres</code> sem env obrigatório.</p>
+  <p><span class="label">Impacto:</span> Acesso total ao PostgreSQL em deploy mal configurado.</p>
+  <p><span class="label">Corrigir:</span> Exigir <code>DB_USER</code>/<code>DB_PASSWORD</code> sem default; fail-fast no boot.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<hr/>
+
+<h2>5. Problemas ALTOS</h2>
+
+<div class="finding">
+  <h3>5.1 IDOR / oráculo cross-tenant em outcome</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 1 #6</p>
+  <p><span class="label">Arquivo:</span> <code>OutcomeService.java</code> (L32–37); <code>OutcomeController.java</code> (L33)</p>
+  <p><span class="label">Descrição:</span> <code>findById</code> sem tenant → 403 vs 404 permite enumeração cross-tenant.</p>
+  <p><span class="label">Corrigir:</span> Só <code>findByIdAndTenantId</code>; 404 uniforme.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.2 Idempotência inconsistente após persistência</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 2 #11</p>
+  <p><span class="label">Arquivo:</span> <code>AnalysisService.java</code>, <code>InvoiceWriteService.java</code>, <code>IdempotencyService.java</code></p>
+  <p><span class="label">Descrição:</span> Persist <code>REQUIRES_NEW</code> + falha no <code>confirm</code> Redis + <code>release</code> → retry vira <code>DuplicateInvoiceException</code>.</p>
+  <p><span class="label">Corrigir:</span> Confirmar após sucesso total; retornar análise existente em duplicata.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.3 Destinatário CPF quebra company e enviesa score</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 2 #13</p>
+  <p><span class="label">Arquivo:</span> <code>NFeParser.java</code>, <code>CompanyService.java</code>, <code>V4__companies.sql</code></p>
+  <p><span class="label">Descrição:</span> CPF (11) falha em <code>CHECK LENGTH=14</code> → exception engolida → <code>UNKNOWN</code>.</p>
+  <p><span class="label">Corrigir:</span> Não criar Company para CPF; ramo PF no scoring.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.4 N+1 em listagem de análises</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #21</p>
+  <p><span class="label">Arquivo:</span> <code>AnalysisResponse.java</code> (L43); <code>RiskAnalysis.java</code> (LAZY)</p>
+  <p><span class="label">Corrigir:</span> EntityGraph / JOIN FETCH / projetar <code>invoice_id</code>.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.5 Queries de histórico varrem o tenant</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #22</p>
+  <p><span class="label">Arquivo:</span> <code>InvoiceRepository.java</code>, <code>OutcomeRepository.java</code> — <code>summarizeHistory</code></p>
+  <p><span class="label">Corrigir:</span> Filtrar CNPJs no WHERE.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.6 page/size sem limite superior</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #19</p>
+  <p><span class="label">Arquivo:</span> <code>AnalysisListController.java</code></p>
+  <p><span class="label">Corrigir:</span> <code>@Max(100)</code> / clamp.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.7 Sem rate limiting</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #20</p>
+  <p><span class="label">Corrigir:</span> Rate limit por tenant/API key.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.8 GET de company com side effects</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 1 #7</p>
+  <p><span class="label">Arquivo:</span> <code>CompanyController</code> / <code>CompanyService.resolveCompany</code></p>
+  <p><span class="label">Corrigir:</span> GET só leitura; create/refresh em POST.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.9 Race em registro de outcome</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 2 #15</p>
+  <p><span class="label">Arquivo:</span> <code>OutcomeService.java</code></p>
+  <p><span class="label">Corrigir:</span> Catch <code>DataIntegrityViolationException</code> como idempotente.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.10 Revogação de certificado NF-e desabilitada</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 1 #8</p>
+  <p><span class="label">Arquivo:</span> <code>NFeParser.java</code> (L424) — <code>setRevocationEnabled(false)</code></p>
+  <p><span class="label">Corrigir:</span> OCSP/CRL alinhado à config.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.11 Frontend sem autenticação em produção</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 4 #28</p>
+  <p><span class="label">Arquivo:</span> <code>main.tsx</code>, <code>authService.ts</code>, <code>App.tsx</code></p>
+  <p><span class="label">Corrigir:</span> Login real + route guards.</p>
+  <p><span class="label">Esforço:</span> L</p>
+</div>
+
+<div class="finding">
+  <h3>5.12 Ausência total de CI/CD</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 4 #26</p>
+  <p><span class="label">Corrigir:</span> GitHub Actions (Maven test + frontend build/lint).</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.13 Sem Docker / Compose</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 4 #27</p>
+  <p><span class="label">Corrigir:</span> Dockerfile multi-stage + compose com healthchecks.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<div class="finding">
+  <h3>5.14 DuplicateInvoice na race perde existing_analysis_id</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 2 #12</p>
+  <p><span class="label">Arquivo:</span> <code>InvoiceWriteService.java</code> (L41–42)</p>
+  <p><span class="label">Corrigir:</span> Buscar análise existente após conflito.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.15 Outcome duplicado retorna 204 silencioso</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 2 #14</p>
+  <p><span class="label">Arquivo:</span> <code>OutcomeService.java</code>, <code>AnalysisDetailPage.tsx</code></p>
+  <p><span class="label">Corrigir:</span> 409 ou retornar existente; UI tratar.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.16 Credenciais Redis vazias por default</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 0 #2</p>
+  <p><span class="label">Arquivo:</span> <code>application.properties</code> (L21–23)</p>
+  <p><span class="label">Corrigir:</span> Auth + TLS obrigatórios em produção.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.17 InvoiceWriteService timeout 5s</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #25</p>
+  <p><span class="label">Arquivo:</span> <code>InvoiceWriteService.java</code> (L25)</p>
+  <p><span class="label">Corrigir:</span> Timeout maior/configurável.</p>
+  <p><span class="label">Esforço:</span> S</p>
+</div>
+
+<div class="finding">
+  <h3>5.18 Estatísticas com múltiplas queries</h3>
+  <p><span class="label">Severidade:</span> <span class="alto">ALTO</span> · Plano: Onda 3 #23</p>
+  <p><span class="label">Arquivo:</span> <code>AnalysisService.getStatistics</code></p>
+  <p><span class="label">Corrigir:</span> Query agregada única.</p>
+  <p><span class="label">Esforço:</span> M</p>
+</div>
+
+<hr/>
+
+<h2>6. Problemas MÉDIOS</h2>
+
+<div class="finding">
+  <h3>6.1 Open Session In View implícito</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 3 #24 · <code>spring.jpa.open-in-view=false</code> + fetch explícito · Esforço: M</p>
+</div>
+<div class="finding">
+  <h3>6.2 riskLevel inválido → 500</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 2 #17 · <code>AnalysisService.java</code> L163 · Validar → 400 · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.3 requestedMonthlyRate como double primitivo</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 2 #18 · <code>AnalysisRequest.java</code> · BigDecimal opcional + validação · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.4 XML em base64 no DB + disco</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #33 · Path no DB; XML em object storage · Esforço: M</p>
+</div>
+<div class="finding">
+  <h3>6.5 Código morto / APIs não usadas</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #34</p>
+  <table>
+    <tr><th>Item</th><th>Evidência</th></tr>
+    <tr><td><code>confirmAfterCommit</code></td><td>Só testes</td></tr>
+    <tr><td><code>listStale()</code></td><td>Sem scheduler</td></tr>
+    <tr><td><code>averageFaceValueByIssuerCnpjAndTenant</code></td><td>Sem callers</td></tr>
+    <tr><td>Counts Invoice/Outcome</td><td>Substituídos por summarizeHistory</td></tr>
+    <tr><td><code>XmlStorageService.retrieve</code></td><td>Só testes</td></tr>
+    <tr><td>Package <code>com.cypher.core</code></td><td>Vazio</td></tr>
+  </table>
+</div>
+<div class="finding">
+  <h3>6.6 Histórico: busca só na página atual</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #35 · <code>HistoryPage.tsx</code> · Esforço: M</p>
+</div>
+<div class="finding">
+  <h3>6.7 Export CSV só da página corrente</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #36 · <code>HistoryPage.tsx</code> · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.8 Observabilidade falsa “matriz de endpoints”</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #37 · <code>ObservabilityPage.tsx</code> · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.9 App React sem lazy loading</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #38 · <code>App.tsx</code> · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.10 CORS X-Tenant-Id sem uso</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 1 #10 · <code>SecurityConfig.java</code> · Remover do CORS · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.11 RequestSizeLimitFilter bufferiza body</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #29 · Esforço: M</p>
+</div>
+<div class="finding">
+  <h3>6.12 Race em createCompany</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 2 #16 · <code>CompanyService.java</code> · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.13 Actuator metrics/flyway para qualquer autenticado</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 1 #9 · Restringir a ADMIN · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.14 Flyway baseline-on-migrate=true</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #30 · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.15 TTL PROCESSING 2 min</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #31 · <code>IdempotencyService.java</code> · Esforço: S</p>
+</div>
+<div class="finding">
+  <h3>6.16 JWT HMAC simétrico</h3>
+  <p><span class="medio">MÉDIO</span> · Plano: Onda 5 #32 · Só se multi-serviço · Esforço: L</p>
+</div>
+
+<hr/>
+
+<h2>7. Problemas BAIXOS</h2>
+<p>Plano: Onda 6 (#39–48)</p>
+<ol>
+  <li>Cast desnecessário no logger (<code>GlobalExceptionHandler.java</code>)</li>
+  <li>Índice redundante em <code>api_keys</code></li>
+  <li>Contact email genérico no OpenAPI</li>
+  <li>Emojis na UI de latência</li>
+  <li>CacheConfig com nome enganoso</li>
+  <li>CompanyResponse órfão no frontend</li>
+  <li>acceptLoginToken / logout sem UI</li>
+  <li>Comentários JSX vazios</li>
+  <li>Sobreposição DuplicateInvoiceRule vs validação no service</li>
+  <li>Hikari pool fixo em 10 (revisar sob carga)</li>
+</ol>
+
+<hr/>
+
+<h2>8. Pontos positivos observados</h2>
+<ul>
+  <li>XXE mitigado no <code>NFeParser.buildDocument</code>.</li>
+  <li>Path traversal bloqueado em <code>XmlStorageService</code>.</li>
+  <li>Tenant isolation explícita em repositórios principais.</li>
+  <li>JWT valida issuer, audience e <code>tenant_id</code> UUID.</li>
+  <li>Idempotência com fingerprint JSON.</li>
+  <li>Unique <code>(tenant_id, chave_nfe)</code> no banco.</li>
+  <li>Dev token gated por <code>@Profile("dev")</code> + property.</li>
+  <li>Assinatura NF-e com validação de cadeia (com trust store).</li>
+  <li>Exception handler genérico não vaza stack ao cliente.</li>
+</ul>
+
+<hr/>
+
+<p class="meta">
+  <em>Documento unificado: auditoria (48 achados) + plano de execução em 7 ondas.
+  Esforços: S = pequeno, M = médio, L = grande. Atualizado em 16/07/2026.</em>
+</p>
+
+</body>
+</html>

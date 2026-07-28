@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { riskColor, scoreToLevel } from '../../lib/risk'
 
 interface Props {
-  score: number   // 0.0–1.0
+  score: number
   size?: number
   animate?: boolean
 }
@@ -31,12 +31,12 @@ export function ScoreGauge({ score, size = 180, animate = true }: Props) {
   const level = scoreToLevel(score)
   const color = riskColor(level)
 
-  // SVG arc params
+
   const r = (size / 2) * 0.78
   const cx = size / 2
   const cy = size / 2
-  const startAngle = -210  // degrees
-  const totalArc = 240     // degrees
+  const startAngle = -210
+  const totalArc = 240
   const angle = startAngle + totalArc * displayed
 
   const toRad = (deg: number) => (deg * Math.PI) / 180
@@ -53,7 +53,7 @@ export function ScoreGauge({ score, size = 180, animate = true }: Props) {
   return (
     <div className="flex flex-col items-center gap-2">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Track */}
+
         <path
           d={arcPath(startAngle, startAngle + totalArc)}
           fill="none"
@@ -61,7 +61,7 @@ export function ScoreGauge({ score, size = 180, animate = true }: Props) {
           strokeWidth={size * 0.075}
           strokeLinecap="round"
         />
-        {/* Fill */}
+
         {displayed > 0 && (
           <path
             d={arcPath(startAngle, angle)}
@@ -72,7 +72,7 @@ export function ScoreGauge({ score, size = 180, animate = true }: Props) {
             style={{ filter: `drop-shadow(0 0 8px ${color}80)` }}
           />
         )}
-        {/* Center text */}
+
         <text x={cx} y={cy - size * 0.04} textAnchor="middle" fill="white" fontSize={size * 0.24} fontWeight="800" fontFamily="Inter">
           {displayScore}
         </text>

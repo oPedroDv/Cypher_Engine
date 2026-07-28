@@ -123,7 +123,7 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
 
         @Override
         public void setReadListener(ReadListener readListener) {
-            // The body is already buffered and always ready for synchronous MVC consumption.
+
         }
     }
 

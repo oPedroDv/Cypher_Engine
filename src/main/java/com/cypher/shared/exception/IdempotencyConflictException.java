@@ -7,8 +7,13 @@ public class IdempotencyConflictException extends CypherException {
     private final String idempotencyKey;
 
     public IdempotencyConflictException(String idempotencyKey) {
+        this(idempotencyKey, "Análise em andamento para esta chave. Tente novamente em instantes.");
+    }
+
+
+    public IdempotencyConflictException(String idempotencyKey, String message) {
         super(
-                "Análise em andamento para esta chave. Tente novamente em instantes.",
+                message,
                 HttpStatus.CONFLICT,
                 "IDEMPOTENCY_CONFLICT"
         );

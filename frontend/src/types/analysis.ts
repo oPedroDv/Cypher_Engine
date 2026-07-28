@@ -1,4 +1,4 @@
-// ─── Risk Levels ───────────────────────────────────────────────────────────────
+
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 
 export interface FactorDto {
@@ -31,7 +31,7 @@ export interface ScoreAdjustmentDto {
   reason: string
 }
 
-// ─── Analysis Request ───────────────────────────────────────────────────────────
+
 export interface AnalysisRequest {
   xmlBase64: string
   idempotencyKey?: string
@@ -39,12 +39,12 @@ export interface AnalysisRequest {
   requestedMonthlyRate?: number
 }
 
-// ─── Analysis Response ─────────────────────────────────────────────────────────
+
 export interface AnalysisResponse {
   analysisId: string
   invoiceId: string
   idempotent: boolean
-  score: number           // 0.0–1.0
+  score: number
   riskLevel: RiskLevel
   recommendation: string
   modelVersion: string
@@ -52,10 +52,10 @@ export interface AnalysisResponse {
   scoreAdjustments: ScoreAdjustmentDto[]
   factors: FactorDto[]
   financial: FinancialDto | null
-  createdAt: string       // ISO 8601
+  createdAt: string
 }
 
-// ─── Outcome ───────────────────────────────────────────────────────────────────
+
 export type OutcomeType = 'PAID' | 'PARTIAL' | 'DEFAULT' | 'CANCELLED'
 
 export interface OutcomeRequest {
@@ -66,7 +66,7 @@ export interface OutcomeRequest {
   notes?: string
 }
 
-// ─── Statistics ────────────────────────────────────────────────────────
+
 export interface StatisticsResponse {
   totalAnalyses: number
   totalRisksFound: number
@@ -80,17 +80,17 @@ export interface DailyCount {
   count: number
 }
 
-// ─── Pagination — Spring Page JSON usa 'number' para página atual ───────────────────────
+
 export interface PaginatedResponse<T> {
   content: T[]
   totalElements: number
   totalPages: number
-  /** Spring serializa a página atual como 'number', não 'page' */
+
   number: number
   size: number
 }
 
-// ─── Health ────────────────────────────────────────────────────────────────────
+
 export type HealthStatus = 'UP' | 'DOWN' | 'UNKNOWN'
 
 export interface HealthResponse {
@@ -98,7 +98,7 @@ export interface HealthResponse {
   components?: Record<string, { status: HealthStatus; details?: Record<string, unknown> }>
 }
 
-// ─── Company ───────────────────────────────────────────────────────────────────
+
 export interface CompanyResponse {
   id: string
   cnpj: string
@@ -111,7 +111,7 @@ export interface CompanyResponse {
   createdAt: string
 }
 
-// ─── UI helpers ────────────────────────────────────────────────────────────────
+
 export interface ApiError {
   message: string
   status?: number

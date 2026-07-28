@@ -48,7 +48,7 @@ export default function ObservabilityPage() {
 
   return (
     <div className="space-y-6 animate-in">
-      {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Observabilidade</h1>
@@ -60,9 +60,9 @@ export default function ObservabilityPage() {
         </button>
       </div>
 
-      {/* Status Cards */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* API Status */}
+
         <div className={cn(
           'card border-2 flex flex-col gap-3',
           isLoading ? 'border-bg-border' : isOnline ? 'border-risk-low/30' : 'border-risk-high/30'
@@ -81,7 +81,7 @@ export default function ObservabilityPage() {
           <p className="stat-sub">Atualizado: {lastChecked}</p>
         </div>
 
-        {/* Latency */}
+
         <div className="card flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan" />
@@ -97,7 +97,7 @@ export default function ObservabilityPage() {
           </p>
         </div>
 
-        {/* Health Status */}
+
         <div className="card flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-cyan" />
@@ -109,7 +109,7 @@ export default function ObservabilityPage() {
           <p className="stat-sub">/actuator/health</p>
         </div>
 
-        {/* Components */}
+
         <div className="card flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Server className="w-4 h-4 text-cyan" />
@@ -125,7 +125,7 @@ export default function ObservabilityPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Spring Actuator Components */}
+
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <Server className="w-4 h-4 text-cyan" />
@@ -146,7 +146,7 @@ export default function ObservabilityPage() {
           )}
         </div>
 
-        {/* Endpoint Matrix */}
+
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-cyan" />
@@ -168,7 +168,7 @@ export default function ObservabilityPage() {
         </div>
       </div>
 
-      {/* Raw health response */}
+
       {health && (
         <div className="card">
           <h2 className="text-sm font-semibold text-white mb-3">Resposta Bruta — /actuator/health</h2>

@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -57,7 +58,19 @@ public class XmlStorageService {
             Path target  = resolveAndValidate(base, relativePath);
 
             Files.createDirectories(target.getParent());
-            Files.write(target, xmlBytes);
+
+            Path temporary = Files.createTempFile(target.getParent(), ".tmp-", ".xml");
+            try {
+                Files.write(temporary, xmlBytes);
+                try {
+                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
 
             log.debug("XML armazenado localmente: {}", target);
             return "local://" + relativePath;

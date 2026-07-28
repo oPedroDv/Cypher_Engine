@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.method.PrePostTemplateDefaults;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -34,6 +35,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.springframework.security.config.Customizer.withDefaults;
@@ -61,6 +63,9 @@ public class SecurityConfig {
     @Value("${cypher.security.jwt.audience}")
     private String jwtAudience;
 
+    @Value("${cypher.security.cors.allowed-origins:http://localhost:5173}")
+    private String corsAllowedOrigins;
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -76,8 +81,13 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(tenantFilter, BearerTokenAuthenticationFilter.class)
-                .oauth2ResourceServer(oauth2 ->
-                        oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())));
+                .exceptionHandling(exceptions -> exceptions.accessDeniedHandler((request, response, denied) -> {
+
+                    response.setStatus(403);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"access_denied\"}");
+                }))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())));
 
         log.info("SecurityFilterChain configurado - modo stateless JWT com CORS");
         return http.build();
@@ -86,7 +96,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        configuration.setAllowedOrigins(Arrays.stream(corsAllowedOrigins.split(","))
+                .map(String::trim).filter(origin -> !origin.isBlank()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of(
                 "Authorization",
@@ -94,14 +106,21 @@ public class SecurityConfig {
                 "X-Requested-With",
                 "X-API-Key",
                 "X-Api-Key",
-                "X-Tenant-Id"
+                "X-Tenant-Id",
+
+                "X-Correlation-Id"
         ));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setExposedHeaders(List.of("Authorization", "X-Correlation-Id"));
         configuration.setAllowCredentials(true);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    @Bean
+    public static PrePostTemplateDefaults prePostTemplateDefaults() {
+        return new PrePostTemplateDefaults();
     }
 
     @Bean

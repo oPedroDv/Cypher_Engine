@@ -23,15 +23,16 @@ import com.cypher.outcome.repository.OutcomeHistoryStats;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidFinancialParametersException;
+import com.cypher.audit.domain.AuditAction;
+import com.cypher.audit.service.AuditService;
+import com.cypher.infrastructure.web.CorrelationContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
@@ -56,23 +57,32 @@ public class AnalysisService {
     private final OutcomeRepository outcomeRepository;
     private final SefazClient sefazClient;
     private final NFeParser nfeParser;
+    private final InvoiceWriteService invoiceWriteService;
+    private final AuditService auditService;
 
-    @Transactional
     public AnalysisResponse analyze(AnalysisRequest request, UUID tenantId) {
         requireTenant(tenantId);
-
-        String existingId = idempotencyService.checkOrReverse(tenantId, request.idempotencyKey());
-        if (existingId != null) {
-            log.debug("Hit idempotente key={} analysisId={}", request.idempotencyKey(), existingId);
-            return riskAnalysisRepository.findByIdAndTenantId(UUID.fromString(existingId), tenantId)
-                    .map(analysis -> AnalysisResponse.from(analysis, true))
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Análise idempotente não encontrada: " + existingId));
-        }
-
+        String correlationId = CorrelationContext.getOrCreate();
+        String nfeKey = "UNKNOWN";
+        boolean reservationOwned = false;
         try {
             NFeData nfeData = nfeParser.parse(request.xmlBase64());
+            nfeKey = nfeData.getAccessKey();
             validateFinancialParameters(request, nfeData);
+
+            String fingerprint = IdempotencyService.fingerprintOf(tenantId, nfeKey);
+            String existingId = idempotencyService.checkOrReverse(
+                    tenantId, request.idempotencyKey(), fingerprint);
+            if (existingId != null) {
+                log.debug("Hit idempotente key={} analysisId={}", request.idempotencyKey(), existingId);
+                auditService.recordSuccess(AuditAction.ANALYSIS_IDEMPOTENT_HIT, "RiskAnalysis", existingId,
+                        "Retorno idempotente", correlationId, tenantId);
+                return riskAnalysisRepository.findByIdAndTenantId(UUID.fromString(existingId), tenantId)
+                        .map(analysis -> AnalysisResponse.from(analysis, true))
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Análise idempotente não encontrada: " + existingId));
+            }
+            reservationOwned = request.idempotencyKey() != null && !request.idempotencyKey().isBlank();
 
             validateDuplicity(tenantId, nfeData.getAccessKey());
             SefazClient.ConsultationResult sefazResult = sefazClient.consultStatus(nfeData.getAccessKey());
@@ -94,30 +104,26 @@ public class AnalysisService {
                     .map(RiskFactor::from)
                     .toList();
 
-            Invoice invoice = Invoice.from(request.xmlBase64(), tenantId, nfeData);
-            Invoice savedInvoice;
-            try {
-                savedInvoice = invoiceRepository.saveAndFlush(invoice);
-            } catch (DataIntegrityViolationException ex) {
-                throw new DuplicateInvoiceException(nfeData.getAccessKey(), null);
-            }
 
-            xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getAccessKey());
-
-            RiskAnalysis analysis = RiskAnalysis.of(
-                    savedInvoice,
-                    tenantId,
+            InvoiceWriteService.PersistedAnalysis persisted = invoiceWriteService.persist(
+                    Invoice.from(request.xmlBase64(), tenantId, nfeData), tenantId,
                     engineResult.score(),
                     engineResult.modelVersion(),
                     factors,
                     metrics,
                     engineResult.dataPartial()
             );
+            Invoice savedInvoice = persisted.invoice();
+            RiskAnalysis savedAnalysis = persisted.analysis();
 
-            RiskAnalysis savedAnalysis = riskAnalysisRepository.save(analysis);
 
-            idempotencyService.confirmAfterCommit(
-                    tenantId, request.idempotencyKey(), savedAnalysis.getId().toString());
+            xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getAccessKey());
+            idempotencyService.confirm(tenantId, request.idempotencyKey(),
+                    savedAnalysis.getId().toString(), fingerprint);
+            reservationOwned = false;
+            auditService.recordSuccess(AuditAction.ANALYSIS_CREATED, "RiskAnalysis",
+                    savedAnalysis.getId().toString(), "NF-e analisada via motor de risco",
+                    correlationId, tenantId);
 
             log.info("Análise concluída id={} score={} level={} issuerStatus={} payerStatus={} dataPartial={}",
                     savedAnalysis.getId(),
@@ -130,9 +136,12 @@ public class AnalysisService {
             return AnalysisResponse.from(savedAnalysis, false);
 
         } catch (Exception e) {
-            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+
+            if (reservationOwned) {
                 idempotencyService.release(tenantId, request.idempotencyKey());
             }
+            auditService.recordFailure(AuditAction.ANALYSIS_FAILED, "Invoice", nfeKey,
+                    abbreviated(e.getMessage()), e.getClass().getSimpleName(), correlationId, tenantId);
             log.error("Falha na análise key={}: {}", request.idempotencyKey(), e.getMessage());
             throw e;
         }
@@ -303,5 +312,10 @@ public class AnalysisService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String abbreviated(String message) {
+        if (message == null) return "Falha sem mensagem";
+        return message.length() <= 1024 ? message : message.substring(0, 1024);
     }
 }

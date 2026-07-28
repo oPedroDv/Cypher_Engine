@@ -2,6 +2,8 @@ package com.cypher.audit.domain;
 
 public enum AuditAction {
 
+
+    ANALYSIS_CREATED           ("Análise criada e persistida"),
     ANALYSIS_REQUESTED         ("Análise de risco solicitada"),
     ANALYSIS_COMPLETED         ("Análise de risco concluída com sucesso"),
     ANALYSIS_FAILED            ("Análise de risco encerrada com falha"),
@@ -25,6 +27,9 @@ public enum AuditAction {
     RECEITA_CNPJ_QUERIED       ("Situação cadastral consultada na Receita Federal"),
 
     COMPANY_HISTORY_UPDATED    ("Histórico de empresa atualizado"),
+
+    OUTCOME_REGISTERED         ("Desfecho da operação registrado"),
+    OUTCOME_DUPLICATE_ATTEMPT  ("Tentativa de registrar desfecho duplicado"),
 
     AUTH_LOGIN_SUCCESS         ("Login realizado com sucesso"),
     AUTH_LOGIN_FAILURE         ("Tentativa de login falhou"),

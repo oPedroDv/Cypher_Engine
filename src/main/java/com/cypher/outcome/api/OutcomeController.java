@@ -3,6 +3,7 @@ package com.cypher.outcome.api;
 import com.cypher.outcome.api.dto.OutcomeRequest;
 import com.cypher.outcome.service.OutcomeService;
 import com.cypher.infrastructure.persistence.TenantContext;
+import com.cypher.infrastructure.security.RequiresScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,8 @@ public class OutcomeController {
     private final OutcomeService outcomeService;
 
     @PostMapping("/{analysisId}/outcome")
+
+    @RequiresScope("outcome:write")
     public ResponseEntity<Void> registerOutcome(
             @PathVariable UUID analysisId,
             @Valid @RequestBody OutcomeRequest request
@@ -27,6 +30,7 @@ public class OutcomeController {
         UUID tenantId = TenantContext.getRequired();
         log.info("Registrando outcome analysisId={} outcome={} tenant={}", analysisId, request.outcome(), tenantId);
 
+        outcomeService.assertAnalysisAccess(analysisId, tenantId);
         outcomeService.register(analysisId, request, tenantId);
 
         return ResponseEntity.noContent().build();

@@ -164,7 +164,10 @@ class AnalysisControllerTest {
                 List.of(com.cypher.analysis.domain.RiskFactor.from(
                         RuleResult.of("sefaz", "DOCUMENT", 0.25, 0.4, "INCREASE", "ok", "SEFAZ")
                 )),
-                FinancialMetrics.calculate(new BigDecimal("10000.00"), new BigDecimal("8500.00"), 3.2, 0.25),
+
+                FinancialMetrics.calculate(new BigDecimal("10000.00"), new BigDecimal("8500.00"), 3.2, 0.25,
+                        new BigDecimal("0.18"), new BigDecimal("0.15"),
+                        new BigDecimal("0.95"), new BigDecimal("2.50")),
                 false
         );
         ReflectionTestUtils.setField(analysis, "id", analysisId);

@@ -24,7 +24,7 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-60 flex flex-col bg-bg-surface border-r border-bg-border z-30">
-      {/* Logo */}
+
       <div className="flex items-center gap-3 px-5 py-5 border-b border-bg-border">
         <div className="w-8 h-8 rounded-lg bg-cypher-gradient flex items-center justify-center shadow-glow">
           <Zap className="w-4 h-4 text-bg-base" strokeWidth={2.5} />
@@ -35,7 +35,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
+
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest px-3 mb-3">
           Navegação
@@ -54,7 +54,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* API Status */}
+
       <div className="px-4 py-4 border-t border-bg-border">
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-bg-elevated">
           <span className={cn(

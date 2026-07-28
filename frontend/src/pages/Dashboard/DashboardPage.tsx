@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-in">
-      {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
@@ -91,7 +91,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stat Cards */}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total de Análises"
@@ -123,9 +123,9 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Charts row */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Timeline chart */}
+
         <div className="card lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white">Análises nos Últimos 30 Dias</h2>
@@ -137,7 +137,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Distribution chart */}
+
         <div className="card">
           <h2 className="text-sm font-semibold text-white mb-4">Distribuição por Risco</h2>
           {stats?.byRiskLevel ? (
@@ -148,7 +148,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent analyses table */}
+
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-white">Análises Recentes</h2>

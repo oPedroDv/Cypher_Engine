@@ -4,6 +4,7 @@ import com.cypher.analysis.api.dto.AnalysisRequest;
 import com.cypher.analysis.api.dto.AnalysisResponse;
 import com.cypher.analysis.service.AnalysisService;
 import com.cypher.infrastructure.persistence.TenantContext;
+import com.cypher.infrastructure.security.RequiresScope;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +23,15 @@ public class AnalysisController {
     }
 
     @PostMapping
+
+    @RequiresScope("analysis:write")
     public ResponseEntity<AnalysisResponse> analyze(@Valid @RequestBody AnalysisRequest request) {
         AnalysisResponse response = service.analyze(request, TenantContext.getRequired());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
+    @RequiresScope("analysis:read")
     public ResponseEntity<AnalysisResponse> findById(@PathVariable UUID id) {
         return service.findById(id, TenantContext.getRequired())
                 .map(ResponseEntity::ok)

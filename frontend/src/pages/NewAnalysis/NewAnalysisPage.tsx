@@ -75,13 +75,13 @@ export default function NewAnalysisPage() {
 
   return (
     <div className="space-y-6 animate-in max-w-4xl">
-      {/* Header */}
+
       <div>
         <h1 className="text-2xl font-bold text-white">Nova Análise</h1>
         <p className="text-sm text-gray-500 mt-1">Envie uma NF-e para análise de risco financeiro</p>
       </div>
 
-      {/* Tab selector */}
+
       <div className="flex gap-1 p-1 bg-bg-elevated rounded-xl w-fit">
         {(['paste', 'upload'] as Tab[]).map((t) => (
           <button
@@ -99,7 +99,7 @@ export default function NewAnalysisPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: XML input */}
+
         <div className="lg:col-span-2 space-y-4">
           <div className="card">
             {tab === 'paste' ? (
@@ -143,7 +143,7 @@ export default function NewAnalysisPage() {
             )}
           </div>
 
-          {/* Error */}
+
           {error && (
             <div className="flex items-start gap-3 p-4 bg-risk-high/10 border border-risk-high/30 rounded-xl">
               <AlertCircle className="w-4 h-4 text-risk-high shrink-0 mt-0.5" />
@@ -162,7 +162,7 @@ export default function NewAnalysisPage() {
             </div>
           )}
 
-          {/* Submit */}
+
           <button
             onClick={handleSubmit}
             disabled={isPending || !xmlText.trim()}
@@ -182,9 +182,9 @@ export default function NewAnalysisPage() {
           </button>
         </div>
 
-        {/* Right: params + result preview */}
+
         <div className="space-y-4">
-          {/* Financial params */}
+
           <div className="card space-y-4">
             <h3 className="text-sm font-semibold text-white">Parâmetros Financeiros</h3>
             <div>
@@ -229,7 +229,7 @@ export default function NewAnalysisPage() {
             </div>
           </div>
 
-          {/* Inline result */}
+
           {result && (
             <div className="card border-cyan/20 space-y-4">
               <div className="flex items-center gap-2">

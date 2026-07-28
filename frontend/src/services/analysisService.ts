@@ -7,30 +7,30 @@ import type {
   StatisticsResponse,
 } from '../types/analysis'
 
-// ─── Create Analysis ───────────────────────────────────────────────────────────
+
 export async function createAnalysis(req: AnalysisRequest): Promise<AnalysisResponse> {
   const { data } = await apiClient.post<AnalysisResponse>('/api/v1/analyses', req)
   return data
 }
 
-// ─── Get Analysis by ID ────────────────────────────────────────────────────────
+
 export async function getAnalysis(id: string): Promise<AnalysisResponse> {
   const { data } = await apiClient.get<AnalysisResponse>(`/api/v1/analyses/${id}`)
   return data
 }
 
-// ─── Register Outcome ──────────────────────────────────────────────────────────
+
 export async function registerOutcome(analysisId: string, req: OutcomeRequest): Promise<void> {
   await apiClient.post(`/api/v1/analyses/${analysisId}/outcome`, req)
 }
 
-// ─── Statistics — endpoint real ───────────────────────────────────────────────
+
 export async function getStatistics(): Promise<StatisticsResponse> {
   const { data } = await apiClient.get<StatisticsResponse>('/api/v1/statistics')
   return data
 }
 
-// ─── List Analyses — endpoint real ────────────────────────────────────────────
+
 export async function listAnalyses(params?: {
   page?: number
   size?: number

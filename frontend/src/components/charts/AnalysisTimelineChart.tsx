@@ -27,7 +27,7 @@ const CustomTooltip = ({ active, payload, label }: TimelineTooltipProps) => {
 
 export function AnalysisTimelineChart({ data }: Props) {
   const formatted = data.map(d => ({
-    date: d.date.slice(5),  // MM-DD
+    date: d.date.slice(5),
     count: d.count,
   }))
 

@@ -1,7 +1,7 @@
 import { cn } from '../../lib/utils'
 
 interface Props {
-  value: number        // –1 to +1
+  value: number
   direction: string
   label: string
   className?: string

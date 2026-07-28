@@ -30,6 +30,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @WebMvcTest(controllers = SecurityProbeController.class)
+
 @Import({SecurityConfig.class, TenantFilterConfig.class, ApiKeyAuthProvider.class, GlobalExceptionHandler.class})
 @TestPropertySource(properties = {
         "cypher.security.jwt.secret=test-secret-with-at-least-32-bytes"
@@ -80,6 +82,24 @@ class SecurityConfigTest {
                         .with(jwt().jwt(token -> token.claim("tenant_id", TENANT_ID.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(content().string(TENANT_ID.toString()));
+    }
+
+    @Test
+    void analysisWriteRejectsJwtWithoutRequiredScope() throws Exception {
+        mockMvc.perform(post("/api/v1/analyses")
+                        .with(jwt().jwt(token -> token.claim("tenant_id", TENANT_ID.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("access_denied"));
+    }
+
+    @Test
+    void analysisWriteAcceptsJwtWithRequiredScope() throws Exception {
+        mockMvc.perform(post("/api/v1/analyses")
+                        .with(jwt().authorities(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_analysis:write"))
+                                .jwt(token -> token.claim("tenant_id", TENANT_ID.toString()))))
+                .andExpect(status().isOk());
     }
 
     @Test

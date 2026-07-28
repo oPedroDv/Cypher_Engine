@@ -34,17 +34,19 @@ public class DevAuthController {
     @GetMapping("/dev/token")
     public Map<String, String> generateToken() {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        
+
         String token = Jwts.builder()
                 .subject("dev-user")
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
                 .claim("tenant_id", tenantId.toString())
+
+                .claim("scope", "analysis:read analysis:write outcome:write")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 86400000))
                 .signWith(key)
                 .compact();
-                
+
         return Map.of("access_token", token, "token_type", "Bearer");
     }
 }

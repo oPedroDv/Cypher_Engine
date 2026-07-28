@@ -8,15 +8,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
+import java.net.http.HttpClient;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "receita-federal.enabled", havingValue = "true", matchIfMissing = true)
 public class FederalRevenueHttpClient implements FederalRevenueClient {
 
     private static final String CIRCUIT_BREAKER_NAME = "receita-federal";
@@ -27,12 +32,11 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
     public FederalRevenueHttpClient(
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
+            HttpClient externalHttpClient,
             @Value("${receita-federal.url:https://brasilapi.com.br/api/cnpj/v1}") String baseUrl,
-            @Value("${cypher.http.connect-timeout:3s}") Duration connectTimeout,
             @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(connectTimeout);
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(externalHttpClient);
         requestFactory.setReadTimeout(readTimeout);
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
@@ -43,6 +47,7 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @CircuitBreaker(name = CIRCUIT_BREAKER_NAME, fallbackMethod = "fallbackQuery")
     public CnpjData query(String cnpj) {
         String cleanCnpj = cnpj.replaceAll("[^0-9]", "");

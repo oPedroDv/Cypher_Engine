@@ -81,7 +81,7 @@ export default function AnalysisDetailPage() {
 
   return (
     <div className="space-y-6 animate-in">
-      {/* Header */}
+
       <div className="flex items-start gap-4">
         <button onClick={() => navigate(-1)} className="btn-ghost mt-1">
           <ArrowLeft className="w-4 h-4" />
@@ -101,7 +101,7 @@ export default function AnalysisDetailPage() {
         <CopyButton text={analysis.analysisId} />
       </div>
 
-      {/* Score + Recommendation */}
+
       <div className={cn('card border', riskLevelColor[analysis.riskLevel])}>
         <div className="flex flex-col lg:flex-row items-center gap-8">
           <div className="flex flex-col items-center gap-2 shrink-0">
@@ -121,7 +121,7 @@ export default function AnalysisDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Financial Metrics */}
+
         {analysis.financial && (
           <div className="card">
             <div className="flex items-center gap-2 mb-4">
@@ -153,7 +153,7 @@ export default function AnalysisDetailPage() {
           </div>
         )}
 
-        {/* Risk Factors */}
+
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-cyan" />
@@ -183,7 +183,7 @@ export default function AnalysisDetailPage() {
         </div>
       </div>
 
-      {/* Register Outcome */}
+
       <div className="card">
         <div className="flex items-center gap-2 mb-4">
           <ShieldCheck className="w-4 h-4 text-cyan" />

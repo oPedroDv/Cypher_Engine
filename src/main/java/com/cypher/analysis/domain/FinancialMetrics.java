@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FinancialMetrics(
@@ -17,10 +18,6 @@ public record FinancialMetrics(
         double advanceRatio
 ) {
 
-    private static final BigDecimal LOSS_MULTIPLIER = new BigDecimal("0.18");
-    private static final BigDecimal ADVANCE_HAIRCUT = new BigDecimal("0.15");
-    private static final BigDecimal MAX_ADVANCE_RATIO = new BigDecimal("0.95");
-    private static final BigDecimal RATE_RISK_PREMIUM = new BigDecimal("2.50");
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final MathContext MC = new MathContext(10, RoundingMode.HALF_UP);
 
@@ -28,25 +25,28 @@ public record FinancialMetrics(
             BigDecimal faceValue,
             BigDecimal requestedAdvance,
             double requestedMonthlyRate,
-            double riskScore
+            double riskScore,
+            BigDecimal lossMultiplier,
+            BigDecimal advanceHaircut,
+            BigDecimal maxAdvanceRatio,
+            BigDecimal rateRiskPremium
     ) {
         BigDecimal score    = BigDecimal.valueOf(riskScore);
         BigDecimal rate     = BigDecimal.valueOf(requestedMonthlyRate);
-        BigDecimal advance  = requestedAdvance != null
-                ? requestedAdvance
-                : faceValue.multiply(new BigDecimal("0.90"), MC);
 
-        BigDecimal expectedLoss = score.multiply(LOSS_MULTIPLIER, MC).multiply(ONE_HUNDRED, MC);
+        BigDecimal advance = Objects.requireNonNull(requestedAdvance, "requestedAdvance é obrigatório");
+
+        BigDecimal expectedLoss = score.multiply(lossMultiplier, MC).multiply(ONE_HUNDRED, MC);
 
         BigDecimal riskAdjustedRoi = rate.subtract(expectedLoss, MC);
 
-        BigDecimal haircut    = score.multiply(ADVANCE_HAIRCUT, MC);
+        BigDecimal haircut    = score.multiply(advanceHaircut, MC);
         BigDecimal maxAdvance = faceValue
                 .multiply(BigDecimal.ONE.subtract(haircut, MC), MC)
-                .multiply(MAX_ADVANCE_RATIO, MC)
+                .multiply(maxAdvanceRatio, MC)
                 .setScale(2, RoundingMode.HALF_DOWN);
 
-        BigDecimal suggestedRate = rate.add(score.multiply(RATE_RISK_PREMIUM, MC), MC);
+        BigDecimal suggestedRate = rate.add(score.multiply(rateRiskPremium, MC), MC);
 
         BigDecimal ratio = faceValue.compareTo(BigDecimal.ZERO) > 0
                 ? advance.divide(faceValue, 4, RoundingMode.HALF_UP)
@@ -54,7 +54,7 @@ public record FinancialMetrics(
 
         return new FinancialMetrics(
                 faceValue,
-                requestedAdvance != null ? requestedAdvance : advance,
+                advance,
                 round4(expectedLoss),
                 round4(riskAdjustedRoi),
                 maxAdvance,

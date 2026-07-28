@@ -6,6 +6,7 @@ import com.cypher.company.domain.CnpjStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,9 +19,17 @@ public class RiskEngineService {
     private static final Logger log = LoggerFactory.getLogger(RiskEngineService.class);
 
     private final RuleRegistry registry;
+    private final RiskEngineConfig config;
+
+    @Autowired
+    public RiskEngineService(RuleRegistry registry, RiskEngineConfig config) {
+        this.registry = registry;
+        this.config = config;
+    }
+
 
     public RiskEngineService(RuleRegistry registry) {
-        this.registry = registry;
+        this(registry, new RiskEngineConfig());
     }
 
     public EngineResult score(ScoringContext context) {
@@ -81,8 +90,8 @@ public class RiskEngineService {
 
         double score = Math.max(weightedScore, floor);
         if (shouldApplySourceUnavailablePenalty(context, hasAnyFallback)) {
-            score += 0.10;
-            score = Math.max(score, 0.35);
+            score += config.getSourceUnavailablePenalty();
+            score = Math.max(score, config.getSourceUnavailableFloor());
         }
         return clamp(score);
     }
@@ -96,25 +105,25 @@ public class RiskEngineService {
             return 0.0;
         }
         if (context.issuerCnpjStatus() == CnpjStatus.UNKNOWN || context.payerCnpjStatus() == CnpjStatus.UNKNOWN) {
-            return 0.25;
+            return config.getExternalValidationUnknownFloor();
         }
-        return 0.20;
+        return config.getExternalValidationFloor();
     }
 
     private double sefazFloor(SefazStatus status) {
         return switch (status) {
-            case CANCELLED, DENIED -> 0.95;
-            case PENDING -> 0.70;
-            case ERROR, UNAVAILABLE -> 0.45;
+            case CANCELLED, DENIED -> config.getSefazBlockedFloor();
+            case PENDING -> config.getSefazPendingFloor();
+            case ERROR, UNAVAILABLE -> config.getSefazUnavailableFloor();
             case AUTHORIZED, NOT_CONFIGURED -> 0.0;
         };
     }
 
     private double cnpjFloor(CnpjStatus status, boolean issuer) {
         return switch (status) {
-            case CLOSED, NULLIFIED -> issuer ? 0.90 : 0.80;
-            case UNFIT -> issuer ? 0.80 : 0.70;
-            case SUSPENDED -> issuer ? 0.65 : 0.55;
+            case CLOSED, NULLIFIED -> issuer ? config.getIssuerClosedFloor() : config.getPayerClosedFloor();
+            case UNFIT -> issuer ? config.getIssuerUnfitFloor() : config.getPayerUnfitFloor();
+            case SUSPENDED -> issuer ? config.getIssuerSuspendedFloor() : config.getPayerSuspendedFloor();
             case UNKNOWN -> 0.0;
             case ACTIVE -> 0.0;
         };
@@ -122,12 +131,19 @@ public class RiskEngineService {
 
     private double historicalFloor(ScoringContext context) {
         double floor = 0.0;
-        floor = Math.max(floor, rateFloor(context.issuerDefaultRate(), 0.15, 0.30, 0.70, 0.85));
-        floor = Math.max(floor, rateFloor(context.payerDefaultRate(), 0.10, 0.25, 0.70, 0.90));
-        floor = Math.max(floor, rateFloor(context.pairDefaultRate(), 0.05, 0.15, 0.65, 0.85));
 
-        if (context.payerLatePaymentRate() >= 0.30) {
-            floor = Math.max(floor, 0.60);
+        floor = Math.max(floor, rateFloor(context.issuerDefaultRate(),
+                config.getIssuerHighThreshold(), config.getIssuerCriticalThreshold(),
+                config.getIssuerHighFloor(), config.getIssuerCriticalFloor()));
+        floor = Math.max(floor, rateFloor(context.payerDefaultRate(),
+                config.getPayerHighThreshold(), config.getPayerCriticalThreshold(),
+                config.getPayerHighFloor(), config.getPayerCriticalFloor()));
+        floor = Math.max(floor, rateFloor(context.pairDefaultRate(),
+                config.getPairHighThreshold(), config.getPairCriticalThreshold(),
+                config.getPairHighFloor(), config.getPairCriticalFloor()));
+
+        if (context.payerLatePaymentRate() >= config.getPayerLateThreshold()) {
+            floor = Math.max(floor, config.getPayerLateFloor());
         }
         return floor;
     }
@@ -139,10 +155,10 @@ public class RiskEngineService {
     }
 
     private double maturityFloor(ScoringContext context) {
-        if (context.nfeData().getDueDate() == null) return 0.40;
+        if (context.nfeData().getDueDate() == null) return config.getMissingMaturityFloor();
         long daysUntilDue = ChronoUnit.DAYS.between(LocalDate.now(), context.nfeData().getDueDate());
-        if (daysUntilDue < 0) return 0.75;
-        if (daysUntilDue <= 3) return 0.60;
+        if (daysUntilDue < 0) return config.getOverdueMaturityFloor();
+        if (daysUntilDue <= config.getNearMaturityDays()) return config.getNearMaturityFloor();
         return 0.0;
     }
 
@@ -154,8 +170,9 @@ public class RiskEngineService {
         }
 
         double ratio = totalAmount.doubleValue() / avgValue.doubleValue();
-        if (ratio > 8.0) return 0.75;
-        if (ratio > 5.0) return 0.65;
+
+        if (ratio > config.getValueAnomalyCriticalRatio()) return config.getValueAnomalyCriticalFloor();
+        if (ratio > config.getValueAnomalyHighRatio()) return config.getValueAnomalyHighFloor();
         return 0.0;
     }
 

@@ -3,6 +3,7 @@ package com.cypher.analysis.api;
 import com.cypher.analysis.api.dto.AnalysisResponse;
 import com.cypher.analysis.service.AnalysisService;
 import com.cypher.infrastructure.persistence.TenantContext;
+import com.cypher.infrastructure.security.RequiresScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,8 @@ public class AnalysisListController {
     private final AnalysisService service;
 
     @GetMapping
+
+    @RequiresScope("analysis:read")
     public ResponseEntity<Page<AnalysisResponse>> listAnalyses(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size,

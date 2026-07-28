@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+
 class IdempotencyServiceTest {
 
     private static final String KEY = "req-123";
@@ -75,6 +76,25 @@ class IdempotencyServiceTest {
         }
 
         @Test
+        void shouldRejectKeyReusedForDifferentInvoice() {
+            when(valueOperations.get(REDIS_KEY))
+                    .thenReturn("{\"id\":\"analysis-456\",\"fp\":\"fingerprint-a\"}");
+
+            assertThatThrownBy(() -> service.checkOrReverse(TENANT_ID, KEY, "fingerprint-b"))
+                    .isInstanceOf(IdempotencyConflictException.class)
+                    .hasMessage("Idempotency key 'req-123' already used for a different invoice");
+        }
+
+        @Test
+        void shouldReturnExistingIdWhenFingerprintMatches() {
+            when(valueOperations.get(REDIS_KEY))
+                    .thenReturn("{\"id\":\"analysis-456\",\"fp\":\"fingerprint-a\"}");
+
+            assertThat(service.checkOrReverse(TENANT_ID, KEY, "fingerprint-a"))
+                    .isEqualTo(ANALYSIS_ID);
+        }
+
+        @Test
         @DisplayName("Should throw conflict when key is currently being processed")
         void shouldThrowConflictWhenProcessing() {
             when(valueOperations.get(REDIS_KEY)).thenReturn("PROCESSING");
@@ -116,6 +136,14 @@ class IdempotencyServiceTest {
     @Nested
     @DisplayName("confirm")
     class Confirm {
+
+        @Test
+        void shouldStoreFingerprintWithAnalysisId() {
+            service.confirm(TENANT_ID, KEY, ANALYSIS_ID, "fingerprint-a");
+
+            verify(valueOperations).set(REDIS_KEY,
+                    "{\"id\":\"analysis-456\",\"fp\":\"fingerprint-a\"}", Duration.ofHours(24));
+        }
 
         @Test
         @DisplayName("Should store analysisId with 24h TTL")

@@ -23,7 +23,7 @@ public class RuleRegistry {
             DuplicateInvoiceRule duplicateInvoiceRule,
             CnpjStatusRule       cnpjStatusRule,
             MaturityRiskRule     maturityRiskRule,
-            ValueAnomalyRule     valueAnomalyRule      
+            ValueAnomalyRule     valueAnomalyRule
     ) {
         this.activeRules = List.of(
                 sefazStatusRule,

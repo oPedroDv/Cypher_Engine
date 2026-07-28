@@ -8,7 +8,7 @@ import {
 } from '../services/analysisService'
 import type { AnalysisRequest, OutcomeRequest } from '../types/analysis'
 
-// ─── Keys ──────────────────────────────────────────────────────────────────────
+
 export const analysisKeys = {
   all: ['analyses'] as const,
   lists: () => [...analysisKeys.all, 'list'] as const,
@@ -17,7 +17,7 @@ export const analysisKeys = {
   statistics: () => [...analysisKeys.all, 'statistics'] as const,
 }
 
-// ─── Get single analysis ───────────────────────────────────────────────────────
+
 export function useAnalysis(id: string | undefined) {
   return useQuery({
     queryKey: analysisKeys.detail(id ?? ''),
@@ -26,7 +26,7 @@ export function useAnalysis(id: string | undefined) {
   })
 }
 
-// ─── List analyses ─────────────────────────────────────────────────────────────
+
 export function useAnalysisList(params?: { page?: number; size?: number; riskLevel?: string }) {
   return useQuery({
     queryKey: analysisKeys.list(params ?? {}),
@@ -34,7 +34,7 @@ export function useAnalysisList(params?: { page?: number; size?: number; riskLev
   })
 }
 
-// ─── Statistics ────────────────────────────────────────────────────────────────
+
 export function useStatistics() {
   return useQuery({
     queryKey: analysisKeys.statistics(),
@@ -43,7 +43,7 @@ export function useStatistics() {
   })
 }
 
-// ─── Create analysis ───────────────────────────────────────────────────────────
+
 export function useCreateAnalysis() {
   const qc = useQueryClient()
   return useMutation({
@@ -55,7 +55,7 @@ export function useCreateAnalysis() {
   })
 }
 
-// ─── Register outcome ──────────────────────────────────────────────────────────
+
 export function useRegisterOutcome(analysisId: string) {
   const qc = useQueryClient()
   return useMutation({

@@ -87,7 +87,7 @@ export default function HistoryPage() {
           />
         </div>
 
-        {/* Risk filter */}
+
         <div className="flex items-center gap-1 p-1 bg-bg-elevated rounded-lg">
           <Filter className="w-3.5 h-3.5 text-gray-500 ml-1 shrink-0" />
           {RISK_FILTERS.map(({ label, value }) => (
@@ -106,7 +106,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* Table */}
+
       <div className="card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -178,7 +178,7 @@ export default function HistoryPage() {
           </table>
         </div>
 
-        {/* Pagination */}
+
         {data && data.totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-bg-border">
             <p className="text-xs text-gray-500">

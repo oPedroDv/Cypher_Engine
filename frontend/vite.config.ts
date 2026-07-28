@@ -6,6 +6,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiBase = env.VITE_API_BASE_URL || 'http://localhost:8080'
 
+  const verifyProxyTls = mode !== 'development'
+
   return {
     plugins: [react()],
     resolve: {
@@ -18,17 +20,17 @@ export default defineConfig(({ mode }) => {
         '/v1': {
           target: apiBase,
           changeOrigin: true,
-          secure: false,
+          secure: verifyProxyTls,
         },
         '/api': {
           target: apiBase,
           changeOrigin: true,
-          secure: false,
+          secure: verifyProxyTls,
         },
         '/actuator': {
           target: apiBase,
           changeOrigin: true,
-          secure: false,
+          secure: verifyProxyTls,
         },
       },
     },

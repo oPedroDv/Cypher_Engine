@@ -8,71 +8,53 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Objects;
 
 @Slf4j
 @Component
-public class SefazHttpClient implements SefazClient {
+@ConditionalOnProperty(name = "sefaz.enabled", havingValue = "true")
+public class SefazClientHttp implements SefazClient {
 
-    private static final String CIRCUIT_BREAKER_NAME = "sefaz";
     private static final String PROVIDER = "SEFAZ";
-
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
-    private final boolean enabled;
 
-    public SefazHttpClient(
-            RestClient.Builder restClientBuilder,
+    public SefazClientHttp(
+            RestClient.Builder builder,
             ObjectMapper objectMapper,
-            @Value("${sefaz.url:}") String baseUrl,
-            @Value("${sefaz.enabled:false}") boolean enabled,
-            @Value("${cypher.http.connect-timeout:3s}") Duration connectTimeout,
+            HttpClient externalHttpClient,
+            @Value("${sefaz.url}") String baseUrl,
             @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(externalHttpClient);
+        factory.setReadTimeout(readTimeout);
+        this.restClient = builder.baseUrl(baseUrl).defaultHeader("Accept", "application/json")
+                .requestFactory(factory).build();
         this.objectMapper = objectMapper;
-        this.enabled = enabled && baseUrl != null && !baseUrl.isBlank();
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(connectTimeout);
-        requestFactory.setReadTimeout(readTimeout);
-        this.restClient = restClientBuilder
-                .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://localhost" : baseUrl)
-                .defaultHeader("Accept", "application/json")
-                .requestFactory(requestFactory)
-                .build();
     }
 
     @Override
-    @CircuitBreaker(name = CIRCUIT_BREAKER_NAME, fallbackMethod = "fallbackConsultStatus")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @CircuitBreaker(name = "sefaz", fallbackMethod = "fallbackConsultStatus")
     public ConsultationResult consultStatus(String accessKey) {
         String cleanAccessKey = cleanAccessKey(accessKey);
-
-        if (!enabled) {
-            log.warn("Integração SEFAZ não configurada. accessKey={}", cleanAccessKey);
-            return ConsultationResult.notConfigured(PROVIDER, "Integração SEFAZ não configurada neste ambiente");
-        }
-
-        log.debug("Consultando status NF-e na SEFAZ accessKey={}", cleanAccessKey);
-
-        String body = restClient.get()
-                .uri("/{accessKey}", cleanAccessKey)
-                .retrieve()
-                .body(String.class);
-
+        String body = restClient.get().uri("/{accessKey}", cleanAccessKey).retrieve().body(String.class);
         try {
             SefazStatusResponse response = objectMapper.readValue(body, SefazStatusResponse.class);
-            InvoiceStatus status = InvoiceStatus.fromSefazCode(response.resolvedStatusCode());
             return ConsultationResult.available(
-                    status,
-                    PROVIDER,
-                    Objects.requireNonNullElse(response.resolvedMessage(), "Status retornado pela SEFAZ")
-            );
+                    InvoiceStatus.fromSefazCode(response.resolvedStatusCode()), PROVIDER,
+                    Objects.requireNonNullElse(response.resolvedMessage(), "Status retornado pela SEFAZ"));
         } catch (Exception e) {
-            log.error("Erro ao deserializar resposta SEFAZ para accessKey={}: {}", cleanAccessKey, e.getMessage());
+            log.error("Resposta SEFAZ inválida para accessKey={}: {}", cleanAccessKey, e.getMessage());
             return ConsultationResult.unavailable(PROVIDER, "Resposta inválida da integração SEFAZ");
         }
     }
