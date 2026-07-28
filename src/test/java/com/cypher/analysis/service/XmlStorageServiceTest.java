@@ -29,27 +29,27 @@ class XmlStorageServiceTest {
 
     @Test
     void storePersistsBase64XmlAndRetrieveReturnsBase64Payload() {
-        UUID invoiceId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
         String xml = "<nfe><chNFe>123</chNFe></nfe>";
         String xmlBase64 = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
 
-        String storagePath = service.store(xmlBase64, invoiceId, "123");
+        String storagePath = service.store(xmlBase64, tenantId, "123");
 
-        assertThat(storagePath).isEqualTo("local://" + invoiceId + "/123.xml");
-        assertThat(Path.of(tempDir.toString(), invoiceId.toString(), "123.xml"))
+        assertThat(storagePath).isEqualTo("local://" + tenantId + "/123.xml");
+        assertThat(Path.of(tempDir.toString(), tenantId.toString(), "123.xml"))
                 .hasContent(xml);
         assertThat(service.retrieve(storagePath)).isEqualTo(xmlBase64);
     }
 
     @Test
     void storeTreatsInvalidBase64AsPlainUtf8Xml() {
-        UUID invoiceId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
         String xml = "<nfe>plain</nfe>";
 
-        String storagePath = service.store(xml, invoiceId, null);
+        String storagePath = service.store(xml, tenantId, null);
 
-        assertThat(storagePath).isEqualTo("local://" + invoiceId + "/raw.xml");
-        assertThat(Path.of(tempDir.toString(), invoiceId.toString(), "raw.xml"))
+        assertThat(storagePath).isEqualTo("local://" + tenantId + "/raw.xml");
+        assertThat(Path.of(tempDir.toString(), tenantId.toString(), "raw.xml"))
                 .hasContent(xml);
     }
 

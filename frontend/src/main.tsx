@@ -2,15 +2,16 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
-import { authenticateWithDevToken } from './services/authService'
+import { authenticateWithDevToken, restoreCredential } from './services/authService'
 
 async function bootstrap() {
+  const restored = restoreCredential()
 
-  if (import.meta.env.DEV) {
+  if (!restored && import.meta.env.DEV) {
     try {
       await authenticateWithDevToken()
     } catch (error) {
-      console.warn('Dev authentication unavailable; protected requests will require login.', error)
+      console.warn('Dev authentication unavailable; login será solicitado.', error)
     }
   }
 

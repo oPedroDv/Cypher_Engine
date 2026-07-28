@@ -36,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -111,6 +110,8 @@ public class AnalysisService {
                     .toList();
 
 
+            xmlStorageService.store(request.xmlBase64(), tenantId, nfeData.getAccessKey());
+
             InvoiceWriteService.PersistedAnalysis persisted = invoiceWriteService.persist(
                     Invoice.from(request.xmlBase64(), tenantId, nfeData), tenantId,
                     engineResult.score(),
@@ -119,14 +120,16 @@ public class AnalysisService {
                     metrics,
                     engineResult.dataPartial()
             );
-            Invoice savedInvoice = persisted.invoice();
             RiskAnalysis savedAnalysis = persisted.analysis();
 
-
-            xmlStorageService.store(request.xmlBase64(), savedInvoice.getId(), nfeData.getAccessKey());
-            idempotencyService.confirm(tenantId, request.idempotencyKey(),
-                    savedAnalysis.getId().toString(), fingerprint);
             reservationOwned = false;
+            try {
+                idempotencyService.confirm(tenantId, request.idempotencyKey(),
+                        savedAnalysis.getId().toString(), fingerprint);
+            } catch (RuntimeException ex) {
+                log.error("Análise {} persistida mas resultado idempotente key={} não foi publicado: {}",
+                        savedAnalysis.getId(), request.idempotencyKey(), ex.getMessage());
+            }
             auditService.recordSuccess(AuditAction.ANALYSIS_CREATED, "RiskAnalysis",
                     savedAnalysis.getId().toString(), "NF-e analisada via motor de risco",
                     correlationId, tenantId);
@@ -350,16 +353,6 @@ public class AnalysisService {
                 return null;
             }
         };
-    }
-
-    private RiskLevel parseRiskLevel(String riskLevel) {
-        try {
-            return RiskLevel.valueOf(riskLevel.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "riskLevel inválido: '%s'. Valores aceitos: %s".formatted(
-                            riskLevel, Arrays.toString(RiskLevel.values())), e);
-        }
     }
 
     private void requireTenant(UUID tenantId) {

@@ -5,10 +5,12 @@ import {
   History,
   Activity,
   ChevronRight,
+  LogOut,
   Zap,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useHealth } from '../../hooks/useHealth'
+import { useAuth } from '../../contexts/authContext'
 
 const NAV = [
   { to: '/',              label: 'Dashboard',     icon: LayoutDashboard },
@@ -21,6 +23,7 @@ export function Sidebar() {
   const { data: health } = useHealth()
   const isOnline = health?.status === 'UP'
   const location = useLocation()
+  const { signOut } = useAuth()
 
   return (
     <aside className="fixed left-0 top-0 h-full w-60 flex flex-col bg-bg-surface border-r border-bg-border z-30">
@@ -55,7 +58,11 @@ export function Sidebar() {
       </nav>
 
 
-      <div className="px-4 py-4 border-t border-bg-border">
+      <div className="px-4 py-4 border-t border-bg-border space-y-2">
+        <button type="button" onClick={signOut} className="sidebar-link w-full">
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>Sair</span>
+        </button>
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-bg-elevated">
           <span className={cn(
             'w-2 h-2 rounded-full shrink-0',
