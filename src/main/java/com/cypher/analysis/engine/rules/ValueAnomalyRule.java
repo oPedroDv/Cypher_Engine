@@ -44,8 +44,7 @@ public class ValueAnomalyRule implements RiskRule {
             explanation = "Valor da NF-e %.2fx acima da média do cedente — anomalia extrema, provável fraude ou erro material.".formatted(ratio);
         }
 
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "fraud_detection", score, WEIGHT, direction, explanation, "NFE_DATA");
+        return RuleResult.of(getName(), "fraud_detection", score, WEIGHT, RuleResult.direction(score), explanation, "NFE_DATA");
     }
 
     @Override

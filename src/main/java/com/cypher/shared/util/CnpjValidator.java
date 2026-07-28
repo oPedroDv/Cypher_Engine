@@ -9,7 +9,7 @@ public final class CnpjValidator {
     public static boolean isValid(String cnpj) {
         if (cnpj == null) return false;
 
-        String digits = cnpj.replaceAll("[^0-9]", "");
+        String digits = Digits.onlyDigits(cnpj);
         if (digits.length() != CNPJ_LENGTH) return false;
         if (isAllSameDigits(digits)) return false;
 
@@ -18,7 +18,7 @@ public final class CnpjValidator {
 
     public static String strip(String cnpj) {
         if (cnpj == null) return null;
-        return cnpj.replaceAll("[^0-9]", "");
+        return Digits.onlyDigits(cnpj);
     }
 
     private static boolean checkDigit(String digits, int position) {

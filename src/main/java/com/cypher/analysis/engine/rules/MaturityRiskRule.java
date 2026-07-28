@@ -44,8 +44,7 @@ public class MaturityRiskRule implements RiskRule {
             explanation = "Vencimento em %d dias — exposição longa ao risco de crédito.".formatted(daysUntilDue);
         }
 
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "liquidity_risk", score, WEIGHT, direction, explanation, "NFE_DATA");
+        return RuleResult.of(getName(), "liquidity_risk", score, WEIGHT, RuleResult.direction(score), explanation, "NFE_DATA");
     }
 
     @Override

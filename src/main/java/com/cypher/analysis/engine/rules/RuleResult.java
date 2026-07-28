@@ -11,6 +11,17 @@ public record RuleResult(
         String dataSource
 ) {
 
+    public static final String INCREASE = "INCREASE";
+    public static final String DECREASE = "DECREASE";
+
+    public static String direction(double score) {
+        return direction(score, 0.0);
+    }
+
+    public static String direction(double score, double threshold) {
+        return score > threshold ? INCREASE : DECREASE;
+    }
+
     public static RuleResult of(
             String ruleName,
             String category,
@@ -41,7 +52,7 @@ public record RuleResult(
                 conservativeScore,
                 weight,
                 conservativeScore * weight,
-                "INCREASE",
+                INCREASE,
                 "Fonte de dados indisponível — score conservador aplicado automaticamente.",
                 "FALLBACK"
         );

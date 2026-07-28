@@ -25,8 +25,7 @@ public class CnpjStatusRule implements RiskRule {
     }
 
     private RuleResult buildResult(double score, String party, CnpjStatus status) {
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "cnpj_validation", score, WEIGHT, direction,
+        return RuleResult.of(getName(), "cnpj_validation", score, WEIGHT, RuleResult.direction(score),
                 buildExplanation(party, status), "RECEITA_FEDERAL");
     }
 
