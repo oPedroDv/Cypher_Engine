@@ -23,6 +23,7 @@ import com.cypher.outcome.repository.OutcomeHistoryStats;
 import com.cypher.outcome.repository.OutcomeRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import com.cypher.shared.exception.InvalidFinancialParametersException;
+import com.cypher.shared.exception.InvalidRequestException;
 import com.cypher.audit.domain.AuditAction;
 import com.cypher.audit.service.AuditService;
 import com.cypher.infrastructure.web.CorrelationContext;
@@ -46,6 +47,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AnalysisService {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final InvoiceRepository invoiceRepository;
     private final RiskAnalysisRepository riskAnalysisRepository;
@@ -87,10 +90,12 @@ public class AnalysisService {
             validateDuplicity(tenantId, nfeData.getAccessKey());
             SefazClient.ConsultationResult sefazResult = sefazClient.consultStatus(nfeData.getAccessKey());
 
-            CnpjStatus issuerStatus = resolveStatus(nfeData.getIssuerCnpj(), tenantId);
-            CnpjStatus payerStatus  = resolveStatus(nfeData.getRecipientCnpj(), tenantId);
+            CnpjResolution issuer = resolveStatus(nfeData.getIssuerCnpj(), tenantId);
+            CnpjResolution payer  = resolveStatus(nfeData.getRecipientCnpj(), tenantId);
+            CnpjStatus issuerStatus = issuer.status();
+            CnpjStatus payerStatus  = payer.status();
 
-            ScoringContext context = buildScoringContext(nfeData, request, sefazResult, issuerStatus, payerStatus, tenantId);
+            ScoringContext context = buildScoringContext(nfeData, request, sefazResult, issuer, payer, tenantId);
             RiskEngineService.EngineResult engineResult = riskEngine.score(context);
 
             FinancialMetrics metrics = financialMetricsService.calculate(
@@ -140,13 +145,15 @@ public class AnalysisService {
             return AnalysisResponse.from(savedAnalysis, false);
 
         } catch (Exception e) {
-
+            log.error("Falha na análise key={}: {}", request.idempotencyKey(), e.getMessage(), e);
             if (reservationOwned) {
-                idempotencyService.release(tenantId, request.idempotencyKey());
+                runCleanup(e, "liberar reserva idempotente",
+                        () -> idempotencyService.release(tenantId, request.idempotencyKey()));
             }
-            auditService.recordFailure(AuditAction.ANALYSIS_FAILED, "Invoice", nfeKey,
-                    abbreviated(e.getMessage()), e.getClass().getSimpleName(), correlationId, tenantId);
-            log.error("Falha na análise key={}: {}", request.idempotencyKey(), e.getMessage());
+            String failureKey = nfeKey;
+            runCleanup(e, "registrar auditoria de falha",
+                    () -> auditService.recordFailure(AuditAction.ANALYSIS_FAILED, "Invoice", failureKey,
+                            abbreviated(e.getMessage()), e.getClass().getSimpleName(), correlationId, tenantId));
             throw e;
         }
     }
@@ -161,15 +168,29 @@ public class AnalysisService {
     @Transactional(readOnly = true)
     public Page<AnalysisResponse> listAnalyses(UUID tenantId, int page, int size, String riskLevel) {
         requireTenant(tenantId);
+        if (page < 0) {
+            throw new InvalidRequestException("page deve ser maior ou igual a zero");
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new InvalidRequestException("size deve estar entre 1 e " + MAX_PAGE_SIZE);
+        }
         Pageable pageable = PageRequest.of(page, size);
         Page<RiskAnalysis> result;
         if (riskLevel != null && !riskLevel.isBlank()) {
-            RiskLevel level = RiskLevel.valueOf(riskLevel.toUpperCase());
+            RiskLevel level = parseRiskLevel(riskLevel);
             result = riskAnalysisRepository.findByTenantIdAndRiskLevelOrderByCreatedAtDesc(tenantId, level, pageable);
         } else {
             result = riskAnalysisRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable);
         }
         return result.map(a -> AnalysisResponse.from(a, false));
+    }
+
+    private RiskLevel parseRiskLevel(String riskLevel) {
+        try {
+            return RiskLevel.valueOf(riskLevel.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidRequestException("riskLevel inválido: " + riskLevel);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -214,16 +235,42 @@ public class AnalysisService {
         }
     }
 
-    private CnpjStatus resolveStatus(String cnpj, UUID tenantId) {
+    private CnpjResolution resolveStatus(String cnpj, UUID tenantId) {
         if (cnpj == null || cnpj.isBlank()) {
             log.warn("CNPJ nulo ou vazio — usando UNKNOWN para scoring");
-            return CnpjStatus.UNKNOWN;
+            return CnpjResolution.unresolved();
         }
         try {
-            return companyService.resolveCompany(cnpj, tenantId).getCnpjStatus();
-        } catch (Exception e) {
-            log.warn("Falha ao resolver status do CNPJ={} — usando UNKNOWN. erro={}", cnpj, e.getMessage());
-            return CnpjStatus.UNKNOWN;
+            return CnpjResolution.of(companyService.resolveCompany(cnpj, tenantId).getCnpjStatus());
+        } catch (RuntimeException e) {
+            log.warn("Falha ao resolver status do CNPJ={} — usando UNKNOWN e marcando análise como parcial. erro={}",
+                    cnpj, e.getMessage(), e);
+            return CnpjResolution.unresolved();
+        }
+    }
+
+    /**
+     * Resultado da consulta de cadastro de um CNPJ. {@code degraded} indica que o status não pôde ser
+     * determinado e que a análise deve ser sinalizada como parcial.
+     */
+    private record CnpjResolution(CnpjStatus status, boolean degraded) {
+
+        static CnpjResolution of(CnpjStatus status) {
+            return new CnpjResolution(status, false);
+        }
+
+        static CnpjResolution unresolved() {
+            return new CnpjResolution(CnpjStatus.UNKNOWN, true);
+        }
+    }
+
+    private void runCleanup(Exception primary, String description, Runnable cleanup) {
+        try {
+            cleanup.run();
+        } catch (RuntimeException cleanupFailure) {
+            log.error("Falha ao {} durante o tratamento de erro: {}", description,
+                    cleanupFailure.getMessage(), cleanupFailure);
+            primary.addSuppressed(cleanupFailure);
         }
     }
 
@@ -231,8 +278,8 @@ public class AnalysisService {
             NFeData nfeData,
             AnalysisRequest request,
             SefazClient.ConsultationResult sefazResult,
-            CnpjStatus issuerStatus,
-            CnpjStatus payerStatus,
+            CnpjResolution issuer,
+            CnpjResolution payer,
             UUID tenantId
     ) {
         String issuerCnpj = nfeData.getIssuerCnpj();
@@ -245,8 +292,8 @@ public class AnalysisService {
         return ScoringContext.builder()
                 .nfeData(nfeData)
                 .sefazStatus(SefazStatus.from(sefazResult.status(), sefazResult.notConfigured()))
-                .issuerCnpjStatus(issuerStatus)
-                .payerCnpjStatus(payerStatus)
+                .issuerCnpjStatus(issuer.status())
+                .payerCnpjStatus(payer.status())
                 .issuerTotalInvoices(invoiceStats.issuerTotalAsInt())
                 .issuerDefaultCount(outcomeStats.issuerDefaultsAsInt())
                 .issuerAvgValue(invoiceStats.issuerAvgValue())
@@ -257,7 +304,7 @@ public class AnalysisService {
                 .pairDefaultCount(outcomeStats.pairDefaultsAsInt())
                 .requestedAdvanceValue(request.requestedAdvanceValue())
                 .requestedMonthlyRate(request.requestedMonthlyRate())
-                .hasUnavailableSource(sefazResult.sourceUnavailable())
+                .hasUnavailableSource(sefazResult.sourceUnavailable() || issuer.degraded() || payer.degraded())
                 .build();
     }
 

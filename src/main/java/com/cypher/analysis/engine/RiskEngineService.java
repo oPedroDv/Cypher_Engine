@@ -63,9 +63,9 @@ public class RiskEngineService {
             log.trace("Regra [{}] score={} contribution={}",
                     rule.getName(), result.score(), result.contribution());
             return result;
-        } catch (Exception e) {
-            log.warn("Regra [{}] falhou com exceção. Aplicando fallback. Erro: {}",
-                    rule.getName(), e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("Regra [{}] falhou com exceção. Aplicando fallback. Erro: {}",
+                    rule.getName(), e.getMessage(), e);
             return RuleResult.fallback(rule.getName(), "ERROR", rule.getWeight());
         }
     }
