@@ -8,6 +8,7 @@ import com.cypher.analysis.repository.InvoiceRepository;
 import com.cypher.analysis.repository.RiskAnalysisRepository;
 import com.cypher.shared.exception.DuplicateInvoiceException;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,11 @@ public class InvoiceWriteService {
     private final InvoiceRepository invoiceRepository;
     private final RiskAnalysisRepository riskAnalysisRepository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 5)
+    private static final String NFE_KEY_CONSTRAINT = "uq_invoice_tenant_chave_nfe";
+
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            timeoutString = "${cypher.persistence.write-timeout-seconds:15}")
     public PersistedAnalysis persist(
             Invoice invoice,
             UUID tenantId,
@@ -39,8 +44,26 @@ public class InvoiceWriteService {
             RiskAnalysis savedAnalysis = riskAnalysisRepository.saveAndFlush(analysis);
             return new PersistedAnalysis(savedInvoice, savedAnalysis);
         } catch (DataIntegrityViolationException ex) {
-            throw new DuplicateInvoiceException(invoice.getNfeKey(), null);
+            if (isDuplicateNfeKey(ex)) {
+                throw new DuplicateInvoiceException(invoice.getNfeKey(), null);
+            }
+            throw ex;
         }
+    }
+
+    /**
+     * Somente a violação do índice único {@code (tenant_id, chave_nfe)} representa NF-e duplicada;
+     * qualquer outra violação de integridade indica defeito de schema ou de dados e deve propagar.
+     */
+    private boolean isDuplicateNfeKey(DataIntegrityViolationException ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation
+                    && violation.getConstraintName() != null) {
+                return violation.getConstraintName().toLowerCase().contains(NFE_KEY_CONSTRAINT);
+            }
+        }
+        String message = ex.getMostSpecificCause().getMessage();
+        return message != null && message.toLowerCase().contains(NFE_KEY_CONSTRAINT);
     }
 
     public record PersistedAnalysis(Invoice invoice, RiskAnalysis analysis) {}

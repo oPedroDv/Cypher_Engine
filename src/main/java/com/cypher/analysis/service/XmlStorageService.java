@@ -26,7 +26,12 @@ public class XmlStorageService {
     @Value("${cypher.storage.local-path:/tmp/cypher/xmls}")
     private String localBasePath;
 
-    public String store(String xmlBase64, UUID invoiceId, String nfeKey) {
+    /**
+     * Armazena o XML sob {@code tenantId/nfeKey.xml}. A chave de armazenamento não depende de
+     * nenhum identificador gerado no banco, de modo que a escrita possa acontecer antes da
+     * persistência e a reescrita de uma mesma NF-e seja idempotente.
+     */
+    public String store(String xmlBase64, UUID tenantId, String nfeKey) {
         byte[] xmlBytes = decodeBase64(xmlBase64);
 
         if (xmlBytes.length > MAX_XML_SIZE_BYTES) {
@@ -36,7 +41,7 @@ public class XmlStorageService {
         }
 
         String safeFilename = sanitizeFilename(nfeKey != null ? nfeKey : "raw") + ".xml";
-        String relativePath = invoiceId + "/" + safeFilename;
+        String relativePath = tenantId + "/" + safeFilename;
 
         if (!"local".equals(storageType)) {
             log.warn("Storage type '{}' não implementado. Usando local.", storageType);

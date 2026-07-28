@@ -3,6 +3,7 @@ package com.cypher.analysis.domain;
 import com.cypher.shared.exception.InvalidNFeException;
 import com.cypher.shared.util.AccessKeyValidator;
 import com.cypher.shared.util.CnpjValidator;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -36,14 +37,21 @@ import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
+import java.security.cert.PKIXRevocationChecker;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Component
 public class NFeParser {
 
@@ -103,7 +111,11 @@ public class NFeParser {
                 recipientCnpj = cpf.replaceAll("[^0-9]", "");
             }
 
-            validateSignature(document, infNFe);
+            String rawIssueDate = extractOptional(document, "dhEmi", extractOptional(document, "dEmi", null));
+            LocalDate issueDate = parseDate(rawIssueDate)
+                    .orElseThrow(() -> new InvalidNFeException("Data de emissão ausente ou inválida no XML"));
+
+            validateSignature(document, infNFe, issueDate);
 
             Element totals = requiredElement(document, "ICMSTot", "Grupo total/ICMSTot ausente no XML");
             BigDecimal totalAmount = requiredMoney(totals, "vNF");
@@ -112,9 +124,6 @@ public class NFeParser {
             BigDecimal discountAmount = optionalMoney(totals, "vDesc");
             validateTotal(totals, totalAmount, productsAmount, freightAmount, discountAmount);
 
-            String rawIssueDate = extractOptional(document, "dhEmi", extractOptional(document, "dEmi", null));
-            LocalDate issueDate = parseDate(rawIssueDate)
-                    .orElseThrow(() -> new InvalidNFeException("Data de emissão ausente ou inválida no XML"));
             String rawDueDate = extractOptional(document, "dVenc", null);
             LocalDate dueDate = parseDate(rawDueDate).orElse(issueDate.plusDays(30));
 
@@ -167,7 +176,7 @@ public class NFeParser {
         }
     }
 
-    private void validateSignature(Document document, Element infNFe) {
+    private void validateSignature(Document document, Element infNFe, LocalDate issueDate) {
         NodeList signatures = document.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
         if (signatures.getLength() == 0) {
             if (requireSignature) throw new InvalidNFeException("Assinatura digital da NF-e ausente");
@@ -178,7 +187,9 @@ public class NFeParser {
         }
         try {
             infNFe.setIdAttribute("Id", true);
-            DOMValidateContext context = new DOMValidateContext(new NFeKeySelector(trustStore), signatures.item(0));
+            Date signingDate = Date.from(issueDate.atTime(LocalTime.NOON).toInstant(ZoneOffset.UTC));
+            DOMValidateContext context =
+                    new DOMValidateContext(new NFeKeySelector(trustStore, signingDate), signatures.item(0));
             context.setProperty("org.jcp.xml.dsig.secureValidation", Boolean.TRUE);
             XMLSignature signature = XMLSignatureFactory.getInstance("DOM").unmarshalXMLSignature(context);
             String expectedReference = "#" + infNFe.getAttribute("Id");
@@ -365,9 +376,11 @@ public class NFeParser {
 
     private static final class NFeKeySelector extends KeySelector {
         private final KeyStore trustStore;
+        private final Date signingDate;
 
-        private NFeKeySelector(KeyStore trustStore) {
+        private NFeKeySelector(KeyStore trustStore, Date signingDate) {
             this.trustStore = trustStore;
+            this.signingDate = signingDate;
         }
 
         @Override
@@ -379,33 +392,39 @@ public class NFeParser {
         ) throws KeySelectorException {
             if (keyInfo == null) throw new KeySelectorException("KeyInfo ausente");
             for (XMLStructure structure : keyInfo.getContent()) {
-                PublicKey publicKey = extractPublicKey(structure, trustStore);
+                PublicKey publicKey = extractPublicKey(structure, trustStore, signingDate);
                 if (publicKey != null) return () -> publicKey;
             }
             throw new KeySelectorException("Certificado/chave pública ausente em KeyInfo");
         }
 
-        private static PublicKey extractPublicKey(XMLStructure structure, KeyStore trustStore)
-                throws KeySelectorException {
+        private static PublicKey extractPublicKey(
+                XMLStructure structure,
+                KeyStore trustStore,
+                Date signingDate
+        ) throws KeySelectorException {
             try {
                 if (structure instanceof X509Data x509Data) {
                     Collection<X509Certificate> certificates = new ArrayList<>();
                     for (Object item : x509Data.getContent()) {
                         if (item instanceof X509Certificate certificate) {
-                            certificate.checkValidity();
-                            if (certificate.getBasicConstraints() >= 0) {
-                                throw new KeySelectorException("Certificado de assinatura não pode ser de autoridade certificadora");
-                            }
-                            boolean[] keyUsage = certificate.getKeyUsage();
-                            if (keyUsage != null && (keyUsage.length == 0 || !keyUsage[0])) {
-                                throw new KeySelectorException("Certificado não permite assinatura digital");
-                            }
+                            certificate.checkValidity(signingDate);
                             certificates.add(certificate);
                         }
                     }
                     if (!certificates.isEmpty()) {
-                        if (trustStore != null) validateCertificateChain(certificates, trustStore);
-                        return certificates.iterator().next().getPublicKey();
+                        List<X509Certificate> chain = leafFirst(certificates);
+                        X509Certificate leaf = chain.get(0);
+                        if (leaf.getBasicConstraints() >= 0) {
+                            throw new KeySelectorException(
+                                    "Certificado de assinatura não pode ser de autoridade certificadora");
+                        }
+                        boolean[] keyUsage = leaf.getKeyUsage();
+                        if (keyUsage != null && (keyUsage.length == 0 || !keyUsage[0])) {
+                            throw new KeySelectorException("Certificado não permite assinatura digital");
+                        }
+                        if (trustStore != null) validateCertificateChain(chain, trustStore, signingDate);
+                        return leaf.getPublicKey();
                     }
                 }
                 return null;
@@ -414,15 +433,56 @@ public class NFeParser {
             }
         }
 
+        /**
+         * Ordena a cadeia do certificado folha para a raiz, como exigido por
+         * {@link CertificateFactory#generateCertPath(List)}. A folha é o único certificado que não
+         * assina nenhum outro certificado do conjunto.
+         */
+        private static List<X509Certificate> leafFirst(Collection<X509Certificate> certificates)
+                throws KeySelectorException {
+            List<X509Certificate> remaining = new ArrayList<>(certificates);
+            X509Certificate leaf = remaining.stream()
+                    .filter(candidate -> remaining.stream().noneMatch(other -> other != candidate
+                            && other.getIssuerX500Principal().equals(candidate.getSubjectX500Principal())))
+                    .findFirst()
+                    .orElseThrow(() -> new KeySelectorException(
+                            "Não foi possível identificar o certificado folha em KeyInfo"));
+
+            List<X509Certificate> chain = new ArrayList<>();
+            X509Certificate current = leaf;
+            while (current != null) {
+                chain.add(current);
+                remaining.remove(current);
+                X509Certificate issuer = current;
+                current = remaining.stream()
+                        .filter(candidate -> candidate.getSubjectX500Principal()
+                                .equals(issuer.getIssuerX500Principal()))
+                        .findFirst()
+                        .orElse(null);
+            }
+            return chain;
+        }
+
         private static void validateCertificateChain(
-                Collection<X509Certificate> certificates,
-                KeyStore trustStore
+                List<X509Certificate> chain,
+                KeyStore trustStore,
+                Date signingDate
         ) throws Exception {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
-            CertPath path = factory.generateCertPath(new ArrayList<>(certificates));
+            CertPath path = factory.generateCertPath(chain);
             PKIXParameters parameters = new PKIXParameters(trustStore);
-            parameters.setRevocationEnabled(false);
-            CertPathValidator.getInstance("PKIX").validate(path, parameters);
+            parameters.setDate(signingDate);
+
+            CertPathValidator validator = CertPathValidator.getInstance("PKIX");
+            PKIXRevocationChecker revocationChecker = (PKIXRevocationChecker) validator.getRevocationChecker();
+            revocationChecker.setOptions(EnumSet.of(PKIXRevocationChecker.Option.SOFT_FAIL));
+            parameters.addCertPathChecker(revocationChecker);
+
+            validator.validate(path, parameters);
+            if (!revocationChecker.getSoftFailExceptions().isEmpty()) {
+                log.warn("Revogação do certificado NF-e não pôde ser verificada: {}",
+                        revocationChecker.getSoftFailExceptions().get(0).getMessage());
+            }
         }
     }
 }

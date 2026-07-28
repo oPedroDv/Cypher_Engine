@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -152,7 +153,10 @@ class AnalysisServiceTest {
             assertThat(response.invoiceId()).isEqualTo(invoiceId);
             assertThat(response.idempotent()).isFalse();
 
-            verify(xmlStorageService).store(XML, invoiceId, CHAVE_NFE);
+            InOrder order = inOrder(xmlStorageService, invoiceWriteService);
+            order.verify(xmlStorageService).store(XML, TENANT_ID, CHAVE_NFE);
+            order.verify(invoiceWriteService).persist(any(Invoice.class), eq(TENANT_ID), anyDouble(), anyString(),
+                    anyList(), any(FinancialMetrics.class), anyBoolean());
             verify(idempotencyService).confirm(eq(TENANT_ID), eq(IDEM_KEY), eq(analysisId.toString()), anyString());
 
             verify(auditService, times(1)).recordSuccess(eq(AuditAction.ANALYSIS_CREATED),
@@ -169,6 +173,33 @@ class AnalysisServiceTest {
             verify(invoiceWriteService).persist(invoiceCaptor.capture(), eq(TENANT_ID), anyDouble(), anyString(),
                     anyList(), any(FinancialMetrics.class), anyBoolean());
             assertThat(invoiceCaptor.getValue().getIssuerCnpj()).isEqualTo("00000000000000");
+        }
+
+        @Test
+        @DisplayName("Should not persist when XML storage fails")
+        void shouldNotPersistWhenStorageFails() {
+            AnalysisRequest request = createRequest();
+
+            when(idempotencyService.checkOrReverse(eq(TENANT_ID), eq(IDEM_KEY), anyString())).thenReturn(null);
+            when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
+            when(sefazClient.consultStatus(CHAVE_NFE)).thenReturn(
+                    SefazClient.ConsultationResult.available(InvoiceStatus.AUTHORIZED, "SEFAZ", "Autorizada")
+            );
+            when(companyService.resolveCompany(any(), eq(TENANT_ID))).thenReturn(mock(Company.class));
+            when(riskEngine.score(any(ScoringContext.class))).thenReturn(new RiskEngineService.EngineResult(
+                    0.25, List.of(RuleResult.of("sefaz", "DOCUMENT", 0.25, 0.4, "INCREASE", "ok", "SEFAZ")),
+                    "model-v1", false));
+            when(financialMetricsService.calculate(any(), any(), anyDouble(), anyDouble()))
+                    .thenReturn(createMetrics());
+            when(xmlStorageService.store(XML, TENANT_ID, CHAVE_NFE))
+                    .thenThrow(new java.io.UncheckedIOException(new java.io.IOException("disco cheio")));
+
+            assertThatThrownBy(() -> service.analyze(request, TENANT_ID))
+                    .isInstanceOf(java.io.UncheckedIOException.class);
+
+            verifyNoInteractions(invoiceWriteService);
+            verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
+            verify(idempotencyService, never()).confirm(any(), any(), any(), any());
         }
 
         @Test
@@ -231,7 +262,7 @@ class AnalysisServiceTest {
         }
 
         @Test
-        @DisplayName("Should map a concurrent unique constraint violation to duplicate without storing XML")
+        @DisplayName("Should map a concurrent unique constraint violation to duplicate reusing the XML path")
         void shouldHandleConcurrentDuplicateWithoutOrphanFile() {
             when(idempotencyService.checkOrReverse(eq(TENANT_ID), eq(IDEM_KEY), anyString())).thenReturn(null);
             when(invoiceRepository.findByTenantIdAndNfeKey(TENANT_ID, CHAVE_NFE)).thenReturn(Optional.empty());
@@ -247,7 +278,8 @@ class AnalysisServiceTest {
             assertThatThrownBy(() -> service.analyze(createRequest(), TENANT_ID))
                     .isInstanceOf(DuplicateInvoiceException.class);
 
-            verifyNoInteractions(xmlStorageService);
+            verify(xmlStorageService).store(XML, TENANT_ID, CHAVE_NFE);
+            verify(idempotencyService, never()).confirm(any(), any(), any(), any());
             verify(idempotencyService).release(TENANT_ID, IDEM_KEY);
         }
 
