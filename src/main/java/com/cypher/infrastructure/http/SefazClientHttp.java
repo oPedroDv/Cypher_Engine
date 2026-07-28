@@ -3,6 +3,7 @@ package com.cypher.infrastructure.http;
 import com.cypher.analysis.domain.InvoiceStatus;
 import com.cypher.analysis.service.SefazClient;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -48,20 +49,25 @@ public class SefazClientHttp implements SefazClient {
     public ConsultationResult consultStatus(String accessKey) {
         String cleanAccessKey = cleanAccessKey(accessKey);
         String body = restClient.get().uri("/{accessKey}", cleanAccessKey).retrieve().body(String.class);
+        if (body == null || body.isBlank()) {
+            log.error("Resposta vazia da SEFAZ para accessKey={}", cleanAccessKey);
+            return ConsultationResult.unavailable(PROVIDER, "Resposta vazia da integração SEFAZ");
+        }
         try {
             SefazStatusResponse response = objectMapper.readValue(body, SefazStatusResponse.class);
             return ConsultationResult.available(
                     InvoiceStatus.fromSefazCode(response.resolvedStatusCode()), PROVIDER,
                     Objects.requireNonNullElse(response.resolvedMessage(), "Status retornado pela SEFAZ"));
-        } catch (Exception e) {
-            log.error("Resposta SEFAZ inválida para accessKey={}: {}", cleanAccessKey, e.getMessage());
+        } catch (JsonProcessingException e) {
+            log.error("Resposta SEFAZ inválida para accessKey={}: {}", cleanAccessKey, e.getMessage(), e);
             return ConsultationResult.unavailable(PROVIDER, "Resposta inválida da integração SEFAZ");
         }
     }
 
     @SuppressWarnings("unused")
     private ConsultationResult fallbackConsultStatus(String accessKey, Throwable cause) {
-        log.warn("Fallback SEFAZ acionado para accessKey={} causa={}", cleanAccessKey(accessKey), cause.getMessage());
+        log.warn("Fallback SEFAZ acionado para accessKey={} causa={}",
+                cleanAccessKey(accessKey), cause.getMessage(), cause);
         return ConsultationResult.unavailable(PROVIDER, cause.getMessage());
     }
 

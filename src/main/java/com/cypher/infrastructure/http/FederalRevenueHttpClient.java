@@ -3,6 +3,7 @@ package com.cypher.infrastructure.http;
 import com.cypher.company.domain.CnpjStatus;
 import com.cypher.company.service.FederalRevenueClient;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -62,11 +63,16 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
                 })
                 .body(String.class);
 
+        if (body == null || body.isBlank()) {
+            log.error("Resposta vazia da BrasilAPI para CNPJ {}", cleanCnpj);
+            return CnpjData.unknown(cleanCnpj);
+        }
+
         try {
             BrasilApiCnpjResponse apiResponse = objectMapper.readValue(body, BrasilApiCnpjResponse.class);
             return mapToCnpjData(cleanCnpj, apiResponse);
-        } catch (Exception e) {
-            log.error("Erro ao deserializar resposta BrasilAPI para CNPJ {}: {}", cleanCnpj, e.getMessage());
+        } catch (JsonProcessingException e) {
+            log.error("Erro ao deserializar resposta BrasilAPI para CNPJ {}: {}", cleanCnpj, e.getMessage(), e);
             return CnpjData.unknown(cleanCnpj);
         }
     }
@@ -76,11 +82,16 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
             log.warn("CNPJ não encontrado na Receita Federal: {}", cnpj);
             return new CnpjData(cnpj, "EMPRESA NÃO ENCONTRADA", null, CnpjStatus.NULLIFIED);
         }
-        log.warn("Fallback Receita Federal acionado para CNPJ={} causa={}", cnpj, cause.getMessage());
+        log.warn("Fallback Receita Federal acionado para CNPJ={} causa={}", cnpj, cause.getMessage(), cause);
         return CnpjData.unknown(cnpj);
     }
 
     private CnpjData mapToCnpjData(String cnpj, BrasilApiCnpjResponse apiResponse) {
+        if (apiResponse.situacaoCadastral() == null) {
+            log.warn("Resposta da BrasilAPI sem situacao_cadastral para CNPJ {}", cnpj);
+            return new CnpjData(cnpj, apiResponse.razaoSocial(), apiResponse.nomeFantasia(), CnpjStatus.UNKNOWN);
+        }
+
         CnpjStatus status = switch (apiResponse.situacaoCadastral()) {
             case 2 -> CnpjStatus.ACTIVE;
             case 3 -> CnpjStatus.SUSPENDED;

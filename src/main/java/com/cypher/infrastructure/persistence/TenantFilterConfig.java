@@ -36,10 +36,19 @@ public class TenantFilterConfig {
                 FilterChain filterChain
         ) throws ServletException, IOException {
             try {
-                extractTenantId(request).ifPresentOrElse(
-                        tenantId -> {
-                            TenantContext.set(tenantId);
-                            log.debug("TenantContext populado: tenantId={}", tenantId);
+                Optional<UUID> tenantId;
+                try {
+                    tenantId = extractTenantId(request);
+                } catch (InvalidTenantException e) {
+                    log.error("Requisição autenticada rejeitada: {}", e.getMessage());
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "invalid_tenant");
+                    return;
+                }
+
+                tenantId.ifPresentOrElse(
+                        id -> {
+                            TenantContext.set(id);
+                            log.debug("TenantContext populado: tenantId={}", id);
                         },
                         () -> log.debug("Request sem tenant_id (endpoint público ou não autenticado)")
                 );
@@ -54,23 +63,23 @@ public class TenantFilterConfig {
 
             if (auth instanceof ApiKeyAuthentication apiKeyAuth && apiKeyAuth.isAuthenticated()) {
                 UUID tenantId = apiKeyAuth.getTenantId();
-                if (tenantId != null) {
-                    return Optional.of(tenantId);
+                if (tenantId == null) {
+                    throw new InvalidTenantException("API key autenticada sem tenantId associado");
                 }
+                return Optional.of(tenantId);
             }
 
             if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Jwt jwt) {
                 String claim = jwt.getClaimAsString(TENANT_CLAIM);
-                if (claim != null && !claim.isBlank()) {
-                    try {
-                        return Optional.of(UUID.fromString(claim));
-                    } catch (IllegalArgumentException e) {
-                        log.error("tenant_id no JWT não é UUID válido: '{}'", claim);
-                    }
-                } else {
-                    log.warn("JWT autenticado sem claim '{}' — token mal formado", TENANT_CLAIM);
+                if (claim == null || claim.isBlank()) {
+                    throw new InvalidTenantException(
+                            "JWT autenticado sem claim '" + TENANT_CLAIM + "' — token mal formado");
                 }
-                return Optional.empty();
+                try {
+                    return Optional.of(UUID.fromString(claim));
+                } catch (IllegalArgumentException e) {
+                    throw new InvalidTenantException("tenant_id no JWT não é UUID válido: '" + claim + "'");
+                }
             }
 
             return Optional.empty();
@@ -79,6 +88,12 @@ public class TenantFilterConfig {
         @Override
         protected boolean shouldNotFilter(HttpServletRequest request) {
             return request.getRequestURI().startsWith("/actuator");
+        }
+
+        private static final class InvalidTenantException extends RuntimeException {
+            InvalidTenantException(String message) {
+                super(message);
+            }
         }
     }
 }
