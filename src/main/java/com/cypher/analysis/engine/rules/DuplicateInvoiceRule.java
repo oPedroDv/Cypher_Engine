@@ -25,8 +25,7 @@ public class DuplicateInvoiceRule implements RiskRule {
                 ? "Par cedente-sacado com %d operação(ões) sem inadimplências — histórico positivo.".formatted(pairTotal)
                 : "Par cedente-sacado com inadimplência: %d/%d operações (%.0f%%).".formatted(pairDefaults, pairTotal, defaultRate * 100);
 
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "fraud_detection", score, WEIGHT, direction, explanation, "INTERNAL_HISTORY");
+        return RuleResult.of(getName(), "fraud_detection", score, WEIGHT, RuleResult.direction(score), explanation, "INTERNAL_HISTORY");
     }
 
     @Override

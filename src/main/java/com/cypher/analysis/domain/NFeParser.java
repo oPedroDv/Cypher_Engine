@@ -3,6 +3,7 @@ package com.cypher.analysis.domain;
 import com.cypher.shared.exception.InvalidNFeException;
 import com.cypher.shared.util.AccessKeyValidator;
 import com.cypher.shared.util.CnpjValidator;
+import com.cypher.shared.util.Digits;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -100,7 +101,7 @@ public class NFeParser {
                 if (cpf == null || !isValidCpf(cpf)) {
                     throw new InvalidNFeException("CNPJ/CPF do destinatário ausente ou inválido no XML");
                 }
-                recipientCnpj = cpf.replaceAll("[^0-9]", "");
+                recipientCnpj = Digits.onlyDigits(cpf);
             }
 
             validateSignature(document, infNFe);
@@ -335,7 +336,7 @@ public class NFeParser {
     }
 
     private boolean isValidCpf(String cpf) {
-        String digits = cpf == null ? "" : cpf.replaceAll("[^0-9]", "");
+        String digits = Digits.onlyDigits(cpf);
         if (digits.length() != 11 || digits.chars().distinct().count() == 1) return false;
         for (int position = 9; position <= 10; position++) {
             int sum = 0;

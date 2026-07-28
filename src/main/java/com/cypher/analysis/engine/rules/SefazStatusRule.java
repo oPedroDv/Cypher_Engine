@@ -51,8 +51,7 @@ public class SefazStatusRule implements RiskRule {
             }
         }
 
-        String direction = score > 0.0 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "nfe_validation", score, WEIGHT, direction, explanation, "SEFAZ");
+        return RuleResult.of(getName(), "nfe_validation", score, WEIGHT, RuleResult.direction(score), explanation, "SEFAZ");
     }
 
     @Override

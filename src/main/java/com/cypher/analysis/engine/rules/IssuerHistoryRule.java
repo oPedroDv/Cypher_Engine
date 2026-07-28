@@ -39,8 +39,7 @@ public class IssuerHistoryRule implements RiskRule {
             explanation = "Taxa de inadimplência alta: %.1f%% (%d/%d operações) — cedente de alto risco.".formatted(defaultRate * 100, defaults, total);
         }
 
-        String direction = score > 0.10 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "behavioral", score, WEIGHT, direction, explanation, "INTERNAL_HISTORY");
+        return RuleResult.of(getName(), "behavioral", score, WEIGHT, RuleResult.direction(score, 0.10), explanation, "INTERNAL_HISTORY");
     }
 
     @Override

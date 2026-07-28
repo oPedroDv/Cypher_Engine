@@ -9,7 +9,7 @@ public final class AccessKeyValidator {
     public static boolean isValid(String accessKey) {
         if (accessKey == null) return false;
 
-        String digits = accessKey.replaceAll("[^0-9]", "");
+        String digits = Digits.onlyDigits(accessKey);
         if (digits.length() != ACCESS_KEY_LENGTH) return false;
 
         return checkDigit(digits);

@@ -2,6 +2,7 @@ package com.cypher.infrastructure.http;
 
 import com.cypher.analysis.domain.InvoiceStatus;
 import com.cypher.analysis.service.SefazClient;
+import com.cypher.shared.util.Digits;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,7 +10,6 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,10 +35,7 @@ public class SefazClientHttp implements SefazClient {
             @Value("${sefaz.url}") String baseUrl,
             @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(externalHttpClient);
-        factory.setReadTimeout(readTimeout);
-        this.restClient = builder.baseUrl(baseUrl).defaultHeader("Accept", "application/json")
-                .requestFactory(factory).build();
+        this.restClient = ExternalRestClients.jsonClient(builder, externalHttpClient, baseUrl, readTimeout);
         this.objectMapper = objectMapper;
     }
 
@@ -66,7 +63,7 @@ public class SefazClientHttp implements SefazClient {
     }
 
     private String cleanAccessKey(String accessKey) {
-        return accessKey == null ? "" : accessKey.replaceAll("[^0-9]", "");
+        return Digits.onlyDigits(accessKey);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

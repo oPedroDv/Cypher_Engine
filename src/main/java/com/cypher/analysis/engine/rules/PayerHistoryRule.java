@@ -45,8 +45,7 @@ public class PayerHistoryRule implements RiskRule {
             explanation = "Sacado com alta inadimplência: %.1f%% (%d/%d) — risco de não pagamento elevado.".formatted(defaultRate * 100, defaults, total);
         }
 
-        String direction = score > 0.10 ? "INCREASE" : "DECREASE";
-        return RuleResult.of(getName(), "behavioral", score, WEIGHT, direction, explanation, "INTERNAL_HISTORY");
+        return RuleResult.of(getName(), "behavioral", score, WEIGHT, RuleResult.direction(score, 0.10), explanation, "INTERNAL_HISTORY");
     }
 
     @Override

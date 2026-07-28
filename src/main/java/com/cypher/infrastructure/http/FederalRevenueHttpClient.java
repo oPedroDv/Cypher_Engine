@@ -2,6 +2,7 @@ package com.cypher.infrastructure.http;
 
 import com.cypher.company.domain.CnpjStatus;
 import com.cypher.company.service.FederalRevenueClient;
+import com.cypher.shared.util.Digits;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -36,13 +36,7 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
             @Value("${receita-federal.url:https://brasilapi.com.br/api/cnpj/v1}") String baseUrl,
             @Value("${cypher.http.read-timeout:10s}") Duration readTimeout
     ) {
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(externalHttpClient);
-        requestFactory.setReadTimeout(readTimeout);
-        this.restClient = restClientBuilder
-                .baseUrl(baseUrl)
-                .defaultHeader("Accept", "application/json")
-                .requestFactory(requestFactory)
-                .build();
+        this.restClient = ExternalRestClients.jsonClient(restClientBuilder, externalHttpClient, baseUrl, readTimeout);
         this.objectMapper = objectMapper;
     }
 
@@ -50,7 +44,7 @@ public class FederalRevenueHttpClient implements FederalRevenueClient {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @CircuitBreaker(name = CIRCUIT_BREAKER_NAME, fallbackMethod = "fallbackQuery")
     public CnpjData query(String cnpj) {
-        String cleanCnpj = cnpj.replaceAll("[^0-9]", "");
+        String cleanCnpj = Digits.onlyDigits(cnpj);
 
         log.debug("Consultando CNPJ {} na Receita Federal via BrasilAPI", cleanCnpj);
 
